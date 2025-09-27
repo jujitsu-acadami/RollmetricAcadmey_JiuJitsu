@@ -12,10 +12,26 @@ const defaultSettings: AppSettings = {
   skeletonThickness: 5, // Normal
 };
 
+const settingsStorageKey = 'bjjAiCoachSettings';
+
 export default function App() {
   const [page, setPage] = useState<Page>('home');
   const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
-  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  
+  // Initialize settings from localStorage or fall back to defaults
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    try {
+      const savedSettings = localStorage.getItem(settingsStorageKey);
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        // Merge with defaults to handle cases where new settings are added
+        return { ...defaultSettings, ...parsedSettings };
+      }
+    } catch (error) {
+      console.error("Failed to load settings from localStorage:", error);
+    }
+    return defaultSettings;
+  });
 
   const handleNavigate = (newPage: Page) => {
     setPage(newPage);
@@ -24,6 +40,16 @@ export default function App() {
   const handleSessionEnd = (sessionData: Session) => {
     setSessionHistory(prev => [...prev, sessionData]);
     setPage('account');
+  };
+
+  // This function now saves settings to localStorage before updating the state
+  const handleSettingsChange = (newSettings: AppSettings) => {
+    try {
+      localStorage.setItem(settingsStorageKey, JSON.stringify(newSettings));
+    } catch (error) {
+      console.error("Failed to save settings to localStorage:", error);
+    }
+    setSettings(newSettings);
   };
 
   const renderPage = () => {
@@ -36,7 +62,7 @@ export default function App() {
         return <AccountPage 
                   sessionHistory={sessionHistory} 
                   settings={settings}
-                  onSettingsChange={setSettings}
+                  onSettingsChange={handleSettingsChange} // Pass the new handler
                 />;
       default:
         return <HomePage onNavigate={handleNavigate} sessionHistory={sessionHistory} />;
@@ -44,7 +70,7 @@ export default function App() {
   };
   
   return (
-    <div className="min-h-screen bg-[#0D1117] text-gray-100 font-sans flex flex-col">
+    <div className="min-h-screen bg-[#0D1117] text-[#F0F6FC] flex flex-col">
       <Header onNavigate={handleNavigate} currentPage={page} />
       <main className={`flex-grow flex flex-col ${page === 'drill' ? '' : 'items-center p-4 sm:p-6 lg:p-8'}`}>
         {renderPage()}

@@ -3,6 +3,7 @@ import { PoseLandmarker, DrawingUtils, FilesetResolver } from '@mediapipe/tasks-
 import { Session, AppSettings } from '../types';
 import KpiPanel from './KpiPanel';
 import { getPoseFeedback } from '../services/geminiService';
+import LoadingOverlay from './LoadingOverlay';
 
 interface DrillPageProps {
   onSessionEnd: (sessionData: Session) => void;
@@ -279,12 +280,7 @@ export default function DrillPage({ onSessionEnd, settings }: DrillPageProps) {
     <div className="w-full flex-grow flex flex-col bg-[#0D1117] lg:absolute lg:inset-0">
       {/* Video & Canvas Container */}
       <div className="relative w-full flex-1 overflow-hidden lg:rounded-2xl">
-        {(isLoading || error) && (
-            <div className="absolute inset-0 flex items-center justify-center z-30 bg-black text-center p-4">
-                {isLoading && <p className="text-lg sm:text-xl text-gray-400">Loading AI Coach...</p>}
-                {error && <p className="text-lg sm:text-xl text-red-500 max-w-md">{error}</p>}
-            </div>
-        )}
+        <LoadingOverlay isLoading={isLoading} error={error} />
         
         <video ref={videoRef} className={`absolute w-full h-full object-cover ${cameraFacingMode === 'user' ? 'transform -scale-x-100' : ''}`} playsInline muted />
         <canvas ref={canvasRef} className={`absolute w-full h-full ${cameraFacingMode === 'user' ? 'transform -scale-x-100' : ''}`} />
@@ -297,15 +293,15 @@ export default function DrillPage({ onSessionEnd, settings }: DrillPageProps) {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-gray-400 text-base">You're in</p>
-                  <h2 className="text-white text-5xl font-bold tracking-tighter">SIDE CONTROL</h2>
+                  <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">SIDE CONTROL</h2>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={handleToggleSession} className="bg-[#2d2d2d] text-white py-4 px-8 text-lg rounded-lg font-semibold hover:bg-[#3f3f3f] transition-colors">{isSessionActive ? 'Pause' : 'Start'}</button>
-                  <button onClick={handleEndSession} className="bg-[#2d2d2d] text-white py-4 px-8 text-lg rounded-lg font-semibold hover:bg-[#3f3f3f] transition-colors disabled:opacity-50" disabled={!sessionStartTime}>End Session</button>
+                  <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-lg rounded-lg font-bold hover:bg-blue-500 transition-colors">{isSessionActive ? 'Pause' : 'Start'}</button>
+                  <button onClick={handleEndSession} className="bg-[#2d2d2d] text-[#F0F6FC] py-4 px-8 text-lg rounded-lg font-semibold hover:bg-[#3f3f3f] transition-colors disabled:opacity-50 disabled:hover:bg-[#2d2d2d]" disabled={!sessionStartTime}>End Session</button>
                 </div>
               </div>
               <div className="bg-[#2d2d2d] rounded-lg p-3.5 flex items-center justify-center min-h-[56px]">
-                <p className="text-yellow-400 font-medium text-lg text-center">{isAnalyzing ? 'Analyzing...' : feedback}</p>
+                <p className="text-[#58A6FF] font-medium text-lg text-center">{isAnalyzing ? 'Analyzing...' : feedback}</p>
               </div>
               {isSessionActive && <KpiPanel kpis={kpis} />}
             </div>
@@ -322,7 +318,7 @@ export default function DrillPage({ onSessionEnd, settings }: DrillPageProps) {
                 <div className="flex-grow"></div> {/* Spacer */}
                 {videoDevices.length > 1 && (
                   <button onClick={handleCameraSwitch} className="bg-black/40 p-3 rounded-full hover:bg-black/60 transition-colors shadow-lg" aria-label="Switch camera">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#F0F6FC]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4V9h-5M4 20v-5h5" transform="rotate(90 12 12)"/>
                     </svg>
                   </button>
@@ -331,7 +327,7 @@ export default function DrillPage({ onSessionEnd, settings }: DrillPageProps) {
               
               {/* Subtitle Feedback */}
               <div className="absolute bottom-28 left-4 right-4 flex justify-center pointer-events-none">
-                <p className="bg-black/60 backdrop-blur-sm text-yellow-400 font-medium text-center text-base rounded-full px-5 py-2.5 shadow-lg">
+                <p className="bg-black/60 backdrop-blur-sm text-[#58A6FF] font-medium text-center text-base rounded-full px-5 py-2.5 shadow-lg">
                   {isSessionActive ? (isAnalyzing ? 'Analyzing...' : feedback) : 'Session Paused'}
                 </p>
               </div>
@@ -341,14 +337,14 @@ export default function DrillPage({ onSessionEnd, settings }: DrillPageProps) {
                   <div className="grid grid-cols-2 gap-4">
                       <button
                           onClick={handleToggleSession}
-                          className="bg-yellow-500 text-black py-4 rounded-lg font-bold text-lg hover:bg-yellow-600 transition-colors shadow-lg transform active:scale-95"
+                          className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-lg hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95"
                       >
                           {isSessionActive ? 'Pause' : 'Start'}
                       </button>
                       <button
                           onClick={handleEndSession}
                           disabled={!sessionStartTime}
-                          className="bg-[#2d2d2d] text-white py-4 rounded-lg font-semibold text-lg hover:bg-[#3f3f3f] transition-colors disabled:opacity-50 disabled:hover:bg-[#2d2d2d] shadow-lg"
+                          className="bg-[#2d2d2d] text-[#F0F6FC] py-4 rounded-lg font-semibold text-lg hover:bg-[#3f3f3f] transition-colors disabled:opacity-50 disabled:hover:bg-[#2d2d2d] shadow-lg"
                       >
                           End Session
                       </button>

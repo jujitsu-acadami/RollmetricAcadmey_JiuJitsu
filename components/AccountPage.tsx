@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Session, AppSettings, ModelComplexity } from '../types';
 
 interface AccountPageProps {
@@ -28,12 +28,23 @@ const thicknessOptions = [
 
 
 export default function AccountPage({ sessionHistory, settings, onSettingsChange }: AccountPageProps) {
+  const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
+
+  const hasChanges = JSON.stringify(localSettings) !== JSON.stringify(settings);
+
+  const handleSaveChanges = () => {
+    onSettingsChange(localSettings);
+  };
 
   return (
     <div className="w-full flex flex-col gap-6 lg:gap-8 max-w-4xl mx-auto">
       {/* App Settings Section */}
       <div className="bg-[#1c1c1c] w-full p-5 sm:p-6 lg:p-8 rounded-2xl flex flex-col gap-4 lg:gap-6">
-        <h2 className="text-white text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter">
+        <h2 className="text-[#F0F6FC] text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter">
           App Settings
         </h2>
         
@@ -44,8 +55,8 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                 {complexityOptions.map(({id, label}) => (
                     <button 
                         key={id} 
-                        onClick={() => onSettingsChange({ ...settings, modelComplexity: id })}
-                        className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${settings.modelComplexity === id ? 'bg-yellow-500 text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
+                        onClick={() => setLocalSettings({ ...localSettings, modelComplexity: id })}
+                        className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${localSettings.modelComplexity === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
                     >
                         {label}
                     </button>
@@ -55,7 +66,7 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
 
         {/* Personalization Section */}
         <div className="border-t border-gray-700 pt-6 mt-2">
-           <h3 className="text-white text-xl sm:text-2xl font-bold tracking-tight mb-4">
+           <h3 className="text-[#F0F6FC] text-xl sm:text-2xl font-bold tracking-tight mb-4">
              Personalization
            </h3>
            <div className="space-y-6">
@@ -65,16 +76,16 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                 <button
                   id="skeleton-toggle"
                   role="switch"
-                  aria-checked={settings.showSkeleton}
-                  onClick={() => onSettingsChange({ ...settings, showSkeleton: !settings.showSkeleton })}
-                  className={`${settings.showSkeleton ? 'bg-yellow-500' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-[#1c1c1c]`}
+                  aria-checked={localSettings.showSkeleton}
+                  onClick={() => setLocalSettings({ ...localSettings, showSkeleton: !localSettings.showSkeleton })}
+                  className={`${localSettings.showSkeleton ? 'bg-[#58A6FF]' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#58A6FF] focus:ring-offset-2 focus:ring-offset-[#1c1c1c]`}
                 >
-                  <span className={`${settings.showSkeleton ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
+                  <span className={`${localSettings.showSkeleton ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
                 </button>
               </div>
 
               {/* Wrapper for conditional settings */}
-              <div className={`space-y-6 transition-opacity duration-300 ${!settings.showSkeleton ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+              <div className={`space-y-6 transition-opacity duration-300 ${!localSettings.showSkeleton ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                 {/* Skeleton Color */}
                 <div>
                   <label className="text-gray-300 font-medium text-base lg:text-lg mb-3 block">Skeleton Color</label>
@@ -83,8 +94,8 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                       <button
                         key={id}
                         aria-label={`Set skeleton color to ${label}`}
-                        onClick={() => onSettingsChange({ ...settings, skeletonColor: id })}
-                        className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full transition-transform transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1c1c1c] ${settings.skeletonColor === id ? 'ring-2 ring-white' : ''}`}
+                        onClick={() => setLocalSettings({ ...localSettings, skeletonColor: id })}
+                        className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full transition-transform transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1c1c1c] ${localSettings.skeletonColor === id ? 'ring-2 ring-white' : ''}`}
                         style={{ backgroundColor: id }}
                       />
                     ))}
@@ -98,8 +109,8 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                       {thicknessOptions.map(({id, label}) => (
                           <button 
                               key={id} 
-                              onClick={() => onSettingsChange({ ...settings, skeletonThickness: id as any })}
-                              className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${settings.skeletonThickness === id ? 'bg-gray-500 text-white' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
+                              onClick={() => setLocalSettings({ ...localSettings, skeletonThickness: id as any })}
+                              className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${localSettings.skeletonThickness === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
                           >
                               {label}
                           </button>
@@ -110,11 +121,21 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
            </div>
         </div>
 
+        <div className="border-t border-gray-700 pt-6 mt-2">
+            <button
+                onClick={handleSaveChanges}
+                disabled={!hasChanges}
+                className="w-full bg-[#58A6FF] text-black py-3 rounded-lg font-bold text-lg hover:bg-blue-500 transition-colors shadow-lg shadow-[#58A6FF]/20 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:bg-gray-600"
+            >
+                Save Changes
+            </button>
+        </div>
+
       </div>
 
       {/* Session History Section */}
       <div className="bg-[#1c1c1c] w-full p-5 sm:p-6 lg:p-8 rounded-2xl flex flex-col gap-4 sm:gap-5">
-        <h2 className="text-white text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter">
+        <h2 className="text-[#F0F6FC] text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter">
           Session History
         </h2>
         {sessionHistory.length === 0 ? (
@@ -130,14 +151,14 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                 className="bg-[#2d2d2d] rounded-lg p-4 lg:p-5 flex justify-between items-center"
               >
                 <div>
-                  <p className="text-white font-medium text-sm sm:text-base lg:text-lg">
+                  <p className="text-[#F0F6FC] font-medium text-sm sm:text-base lg:text-lg">
                     {session.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </p>
                   <p className="text-gray-400 text-xs sm:text-sm lg:text-base">
                     {session.startTime.toLocaleTimeString()}
                   </p>
                 </div>
-                <p className="text-yellow-500 text-lg sm:text-xl lg:text-2xl font-semibold">
+                <p className="text-[#58A6FF] text-lg sm:text-xl lg:text-2xl font-semibold">
                   {Math.round(session.duration)}s
                 </p>
               </li>
