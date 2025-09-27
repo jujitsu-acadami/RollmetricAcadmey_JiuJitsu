@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { PoseLandmarker, DrawingUtils, FilesetResolver } from '@mediapipe/tasks-vision';
-import { Session, AppSettings, Page } from '../types';
+import { Session, AppSettings, Page, Drill, SessionState } from '../types';
 import KpiPanel from './KpiPanel';
 import { getPoseFeedback } from '../services/geminiService';
 import LoadingOverlay from './LoadingOverlay';
@@ -19,6 +19,11 @@ type KpiType = {
   baseWidth: number | null;
   hipHeight: number | null;
 };
+
+const drills: { id: Drill, name: string }[] = [
+    { id: 'side-control', name: 'SIDE CONTROL' },
+    { id: 'mount', name: 'MOUNT' },
+];
 
 const LayoutToggleButton = ({ layout, onClick }: { layout: string, onClick: () => void }) => (
     <button onClick={onClick} className="w-full flex items-center justify-center gap-2 bg-[#2d2d2d] text-gray-300 hover:text-[#F0F6FC] py-3 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] transition-colors" title={`Switch to ${layout === 'immersive' ? 'Dashboard' : 'Immersive'} View`}>
@@ -40,18 +45,21 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [feedback, setFeedback] = useState('Start the session to get feedback.');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [kpis, setKpis] = useState<KpiType>({ postureHeight: null, baseWidth: null, hipHeight: null });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [currentDrill, setCurrentDrill] = useState<Drill>('side-control');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number | null>(null);
   const lastAnalysisTime = useRef<number>(0);
+  
+  const isSessionActive = sessionState === 'running';
 
   const handleToggleLayout = () => {
     const newLayout = settings.drillLayout === 'immersive' ? 'dashboard' : 'immersive';
@@ -75,6 +83,9 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = devices.filter(device => device.kind === 'videoinput');
         setVideoDevices(videoInputs);
+        if (videoInputs.length > 0 && !selectedDeviceId) {
+          setSelectedDeviceId(videoInputs[0].deviceId);
+        }
       } catch (err: any) {
         console.error("Error enumerating devices:", err);
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -159,7 +170,7 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
           if (now - lastAnalysisTime.current > 3000 && !isAnalyzing) {
             setIsAnalyzing(true);
             lastAnalysisTime.current = now;
-            getPoseFeedback(landmarks).then(newFeedback => {
+            getPoseFeedback(landmarks, currentDrill).then(newFeedback => {
               if (newFeedback) {
                   setFeedback(newFeedback);
                   const lowerCaseFeedback = newFeedback.toLowerCase();
@@ -181,18 +192,18 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     } catch (e) {
       console.error("MediaPipe Error:", e);
       setError("An error occurred during pose detection.");
-      setIsSessionActive(false);
+      setSessionState('paused');
     }
-  }, [poseLandmarker, isAnalyzing, settings]);
+  }, [poseLandmarker, isAnalyzing, settings, currentDrill]);
 
   useEffect(() => {
     const loop = () => {
-      if (isSessionActive) {
+      if (sessionState === 'running') {
         predict();
         animationFrameId.current = requestAnimationFrame(loop);
       }
     };
-    if (isSessionActive) {
+    if (sessionState === 'running') {
       animationFrameId.current = requestAnimationFrame(loop);
     } else {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
@@ -200,16 +211,22 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     return () => {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
     };
-  }, [isSessionActive, predict]);
+  }, [sessionState, predict]);
 
   useEffect(() => {
-    if (!poseLandmarker || !videoRef.current) return;
+    if (!poseLandmarker || !videoRef.current || !selectedDeviceId) return;
     const video = videoRef.current;
     let stream: MediaStream | null = null;
     const startWebcam = async () => {
       if (video.srcObject) (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
       try {
-        const constraints: MediaStreamConstraints = { video: { width: 1280, height: 720, facingMode: cameraFacingMode } };
+        const constraints: MediaStreamConstraints = { 
+            video: { 
+                width: 1280, 
+                height: 720, 
+                deviceId: { exact: selectedDeviceId } 
+            } 
+        };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         video.onloadedmetadata = () => video.play();
@@ -227,26 +244,20 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     return () => {
       if (stream) stream.getTracks().forEach(track => track.stop());
     };
-  }, [poseLandmarker, cameraFacingMode]);
+  }, [poseLandmarker, selectedDeviceId]);
 
   const handleToggleSession = () => {
     triggerHapticFeedback(50);
-    setIsSessionActive(prev => {
-      if (!prev) {
+    if (sessionState === 'running') {
+      setSessionState('paused');
+      setKpis({ postureHeight: null, baseWidth: null, hipHeight: null });
+      setFeedback("Session paused.");
+    } else { // 'idle' or 'paused'
+      if (sessionState === 'idle') {
         setSessionStartTime(new Date());
-        setFeedback("AI coach is warming up...");
-      } else {
-        setKpis({ postureHeight: null, baseWidth: null, hipHeight: null });
-        setFeedback("Session paused.");
       }
-      return !prev;
-    });
-  };
-  
-  const handleCameraSwitch = () => {
-    if (videoDevices.length > 1) {
-      setCameraFacingMode(prevMode => prevMode === 'user' ? 'environment' : 'user');
-      triggerHapticFeedback(30);
+      setSessionState('running');
+      setFeedback("AI coach is warming up...");
     }
   };
 
@@ -258,8 +269,89 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
         duration: (new Date().getTime() - sessionStartTime.getTime()) / 1000,
       });
     }
-    setIsSessionActive(false);
+    setSessionState('idle');
+    setSessionStartTime(null);
+    setKpis({ postureHeight: null, baseWidth: null, hipHeight: null });
+    setFeedback('Start the session to get feedback.');
   };
+  
+  const isUserFacing = useMemo(() => {
+    if (!selectedDeviceId || videoDevices.length === 0) return true;
+    const selectedDevice = videoDevices.find(d => d.deviceId === selectedDeviceId);
+    if (!selectedDevice || !selectedDevice.label) return true; // Default to user-facing if no label
+    
+    const label = selectedDevice.label.toLowerCase();
+    if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
+        return false;
+    }
+    return true;
+  }, [selectedDeviceId, videoDevices]);
+
+  const activeDrillName = useMemo(() => {
+    return drills.find(d => d.id === currentDrill)?.name || 'Drill';
+  }, [currentDrill]);
+
+  const sessionButtonText = useMemo(() => {
+    if (sessionState === 'running') return 'Pause';
+    if (sessionState === 'paused') return 'Resume';
+    return 'Start';
+  }, [sessionState]);
+
+  const ControlGroup = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <>
+      <div className={isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-4'}>
+        <div>
+            <label htmlFor={`drill-select-${isMobile}`} className="sr-only lg:not-sr-only lg:text-gray-400 lg:font-semibold lg:mb-2 lg:px-1 lg:text-base lg:block">Drill</label>
+            <div className="relative">
+                <select
+                    id={`drill-select-${isMobile}`}
+                    value={currentDrill}
+                    onChange={(e) => setCurrentDrill(e.target.value as Drill)}
+                    className="w-full bg-[#2d2d2d] text-gray-300 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-[#58A6FF] transition-all appearance-none disabled:opacity-50"
+                    disabled={sessionState !== 'idle'}
+                >
+                    {drills.map((drill) => (
+                        <option key={drill.id} value={drill.id}>
+                            {drill.name}
+                        </option>
+                    ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+        {videoDevices.length > 1 && (
+             <div>
+                <label htmlFor={`camera-select-${isMobile}`} className="sr-only lg:not-sr-only lg:text-gray-400 lg:font-semibold lg:mb-2 lg:px-1 lg:text-base lg:block">Camera</label>
+                <div className="relative">
+                    <select
+                        id={`camera-select-${isMobile}`}
+                        value={selectedDeviceId}
+                        onChange={(e) => setSelectedDeviceId(e.target.value)}
+                        className="w-full bg-[#2d2d2d] text-gray-300 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-[#58A6FF] transition-all appearance-none disabled:opacity-50"
+                        disabled={sessionState !== 'idle'}
+                    >
+                        {videoDevices.map((device, index) => (
+                            <option key={device.deviceId} value={device.deviceId}>
+                                {device.label || `Camera ${index + 1}`}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+       <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+    </>
+  );
 
   return (
     <div className={`w-full flex-grow bg-[#0D1117] flex flex-col ${settings.drillLayout === 'dashboard' ? 'lg:flex-row lg:gap-8 lg:p-8' : 'lg:absolute lg:inset-0'}`}>
@@ -267,7 +359,7 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
       {/* --- Live View Container (Video & Canvas) --- */}
       <div className="relative w-full flex-1 overflow-hidden lg:rounded-2xl">
         <LoadingOverlay isLoading={isLoading} error={error} onGoBack={() => onNavigate('home')} />
-        <LiveView videoRef={videoRef} canvasRef={canvasRef} cameraFacingMode={cameraFacingMode} />
+        <LiveView videoRef={videoRef} canvasRef={canvasRef} isUserFacing={isUserFacing} />
 
         {/* --- Immersive Mode Desktop UI --- */}
         {!isLoading && !error && settings.drillLayout === 'immersive' && (
@@ -275,17 +367,17 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-400 text-base">You're in</p>
-                <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">SIDE CONTROL</h2>
+                <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">{activeDrillName}</h2>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors">{isSessionActive ? 'Pause' : 'Start'}</button>
-                <button onClick={handleEndSession} className="bg-red-600 text-white py-4 px-8 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]" disabled={!sessionStartTime}>End Session</button>
+                <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors w-40">{sessionButtonText}</button>
+                <button onClick={handleEndSession} className="bg-red-600 text-white py-4 px-8 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]" disabled={sessionState === 'idle'}>End Session</button>
               </div>
             </div>
             <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
-            {isSessionActive && <KpiPanel kpis={kpis} />}
-            <div className="border-t border-gray-700/50 pt-4 mt-2">
-                <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+            {sessionState !== 'idle' && <KpiPanel kpis={kpis} />}
+            <div className="border-t border-gray-700/50 pt-4 mt-2 grid grid-cols-2 gap-4">
+               <ControlGroup />
             </div>
           </div>
         )}
@@ -296,16 +388,16 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
         <div className="hidden lg:flex w-full max-w-sm flex-shrink-0 flex-col gap-6 bg-[#1c1c1c] p-6 rounded-2xl">
             <div>
               <p className="text-gray-400 text-base">You're in</p>
-              <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">SIDE CONTROL</h2>
+              <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">{activeDrillName}</h2>
             </div>
             <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
-            {isSessionActive ? <KpiPanel kpis={kpis} /> : <div className="h-[96px] bg-[#2d2d2d] rounded-lg flex items-center justify-center text-gray-400">KPIs appear here</div>}
+            {sessionState !== 'idle' ? <KpiPanel kpis={kpis} /> : <div className="h-[96px] bg-[#2d2d2d] rounded-lg flex items-center justify-center text-gray-400">KPIs appear here</div>}
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors">{isSessionActive ? 'Pause' : 'Start'}</button>
-              <button onClick={handleEndSession} className="bg-red-600 text-white py-4 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none" disabled={!sessionStartTime}>End Session</button>
+              <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors">{sessionButtonText}</button>
+              <button onClick={handleEndSession} className="bg-red-600 text-white py-4 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none" disabled={sessionState === 'idle'}>End Session</button>
             </div>
-            <div className="border-t border-gray-700/50 pt-4 mt-auto">
-              <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+            <div className="border-t border-gray-700/50 pt-4 mt-auto flex flex-col gap-4">
+               <ControlGroup />
             </div>
         </div>
       )}
@@ -315,33 +407,81 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
         <div className="lg:hidden absolute inset-0 z-20 p-4 flex flex-col justify-between pointer-events-none">
           {/* Top Floating Elements */}
           <div className="flex justify-between items-start pointer-events-auto">
-            {isSessionActive && (
+            {sessionState !== 'idle' && (
               <div className="bg-black/30 backdrop-blur-sm rounded-xl shadow-lg">
                 <KpiPanel kpis={kpis} />
               </div>
             )}
-            <div className="flex-grow"></div>
-            {videoDevices.length > 1 && (
-              <button onClick={handleCameraSwitch} className="bg-black/40 p-3 rounded-full hover:bg-black/60 transition-colors shadow-lg" aria-label="Switch camera">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#F0F6FC]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4V9h-5M4 20v-5h5" transform="rotate(90 12 12)"/>
-                </svg>
-              </button>
-            )}
+            <div className="ml-auto bg-black/40 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-semibold text-base text-right">
+                {activeDrillName}
+            </div>
           </div>
           
           {/* Subtitle Feedback */}
-          <div className="absolute bottom-28 left-4 right-4 flex justify-center">
+          <div className="absolute bottom-48 left-4 right-4 flex justify-center">
             <p className="bg-black/60 backdrop-blur-sm text-[#58A6FF] font-medium text-center text-lg rounded-full px-6 py-3 shadow-lg">
-              {isSessionActive ? (isAnalyzing ? 'Analyzing...' : feedback) : 'Session Paused'}
+              {sessionState === 'running' ? (isAnalyzing ? 'Analyzing...' : feedback) : 'Session Paused'}
             </p>
           </div>
 
           {/* Bottom Control Buttons */}
           <div className="absolute bottom-0 left-0 right-0 w-full px-4 pb-6 pt-10 bg-gradient-to-t from-black/60 to-transparent pointer-events-auto">
-              <div className="grid grid-cols-2 gap-4">
-                  <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95">{isSessionActive ? 'Pause' : 'Start'}</button>
-                  <button onClick={handleEndSession} disabled={!sessionStartTime} className="bg-red-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 transform active:scale-95 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]">End Session</button>
+              <div className="flex flex-col gap-4">
+                <div className="relative">
+                   <select
+                       value={currentDrill}
+                       onChange={(e) => setCurrentDrill(e.target.value as Drill)}
+                       className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60"
+                       disabled={sessionState !== 'idle'}
+                   >
+                       {drills.map((drill) => (
+                           <option key={drill.id} value={drill.id} className="bg-[#1c1c1c] font-semibold">
+                               {drill.name}
+                           </option>
+                       ))}
+                   </select>
+                   <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                   </div>
+                   <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                       <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                       </svg>
+                   </div>
+               </div>
+
+                {videoDevices.length > 1 && (
+                    <div className="relative">
+                       <select
+                           value={selectedDeviceId}
+                           onChange={(e) => setSelectedDeviceId(e.target.value)}
+                           className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60"
+                           disabled={sessionState !== 'idle'}
+                       >
+                           {videoDevices.map((device, index) => (
+                               <option key={device.deviceId} value={device.deviceId} className="bg-[#1c1c1c] font-semibold">
+                                   {device.label || `Camera ${index + 1}`}
+                               </option>
+                           ))}
+                       </select>
+                       <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                           </svg>
+                       </div>
+                       <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                           <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                           </svg>
+                       </div>
+                   </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                    <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95">{sessionButtonText}</button>
+                    <button onClick={handleEndSession} disabled={sessionState === 'idle'} className="bg-red-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 transform active:scale-95 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]">End Session</button>
+                </div>
               </div>
           </div>
         </div>

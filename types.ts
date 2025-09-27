@@ -7,6 +7,10 @@ export interface Session {
 
 export type ModelComplexity = 'lite' | 'full' | 'heavy';
 
+export type Drill = 'side-control' | 'mount';
+
+export type SessionState = 'idle' | 'running' | 'paused';
+
 export interface AppSettings {
   modelComplexity: ModelComplexity;
   showSkeleton: boolean;

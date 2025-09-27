@@ -3,11 +3,11 @@ import React from 'react';
 interface LiveViewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   canvasRef: React.RefObject<HTMLCanvasElement>;
-  cameraFacingMode: 'user' | 'environment';
+  isUserFacing: boolean;
 }
 
-export default function LiveView({ videoRef, canvasRef, cameraFacingMode }: LiveViewProps) {
-  const transformClass = cameraFacingMode === 'user' ? 'transform -scale-x-100' : '';
+export default function LiveView({ videoRef, canvasRef, isUserFacing }: LiveViewProps) {
+  const transformClass = isUserFacing ? 'transform -scale-x-100' : '';
 
   return (
     <>
