@@ -40,6 +40,9 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
     onSettingsChange(localSettings);
   };
 
+  const totalTrainingSeconds = sessionHistory.reduce((total, session) => total + session.duration, 0);
+  const totalTrainingMinutes = Math.round(totalTrainingSeconds / 60);
+
   return (
     <div className="w-full flex flex-col gap-6 lg:gap-8 max-w-4xl mx-auto">
       {/* App Settings Section */}
@@ -56,14 +59,14 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                     <button 
                         key={id} 
                         onClick={() => setLocalSettings({ ...localSettings, modelComplexity: id })}
-                        className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${localSettings.modelComplexity === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
+                        className={`w-full py-3 text-base font-semibold rounded-md transition-colors ${localSettings.modelComplexity === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
                     >
                         {label}
                     </button>
                 ))}
             </div>
         </div>
-
+        
         {/* Personalization Section */}
         <div className="border-t border-gray-700 pt-6 mt-2">
            <h3 className="text-[#F0F6FC] text-xl sm:text-2xl font-bold tracking-tight mb-4">
@@ -110,7 +113,7 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                           <button 
                               key={id} 
                               onClick={() => setLocalSettings({ ...localSettings, skeletonThickness: id as any })}
-                              className={`w-full py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-md transition-colors ${localSettings.skeletonThickness === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
+                              className={`w-full py-3 text-base font-semibold rounded-md transition-colors ${localSettings.skeletonThickness === id ? 'bg-[#58A6FF] text-black' : 'text-gray-300 hover:bg-[#3f3f3f]'}`}
                           >
                               {label}
                           </button>
@@ -125,7 +128,7 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
             <button
                 onClick={handleSaveChanges}
                 disabled={!hasChanges}
-                className="w-full bg-[#58A6FF] text-black py-3 rounded-lg font-bold text-lg hover:bg-blue-500 transition-colors shadow-lg shadow-[#58A6FF]/20 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:bg-gray-600"
+                className="w-full bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg shadow-[#58A6FF]/20 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:bg-gray-600"
             >
                 Save Changes
             </button>
@@ -151,20 +154,42 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                 className="bg-[#2d2d2d] rounded-lg p-4 lg:p-5 flex justify-between items-center"
               >
                 <div>
-                  <p className="text-[#F0F6FC] font-medium text-sm sm:text-base lg:text-lg">
+                  <p className="text-[#F0F6FC] font-medium text-base lg:text-lg">
                     {session.startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </p>
-                  <p className="text-gray-400 text-xs sm:text-sm lg:text-base">
+                  <p className="text-gray-400 text-sm lg:text-base">
                     {session.startTime.toLocaleTimeString()}
                   </p>
                 </div>
-                <p className="text-[#58A6FF] text-lg sm:text-xl lg:text-2xl font-semibold">
+                <p className="text-[#58A6FF] text-xl lg:text-2xl font-semibold">
                   {Math.round(session.duration)}s
                 </p>
               </li>
             ))}
           </ul>
         )}
+      </div>
+
+      {/* User Profile Section */}
+      <div className="bg-[#1c1c1c] w-full p-5 sm:p-6 lg:p-8 rounded-2xl flex flex-col gap-4 sm:gap-5">
+        <h2 className="text-[#F0F6FC] text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter">
+          User Profile
+        </h2>
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#2d2d2d] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 sm:h-12 sm:w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <div className="flex-grow">
+            <h3 className="text-[#F0F6FC] text-xl sm:text-2xl font-bold">Alex Martinez</h3>
+            <p className="text-gray-400 text-base sm:text-lg">Rank: Purple Belt</p>
+            <div className="mt-2 border-t border-gray-700/50 pt-2 flex flex-col sm:flex-row sm:gap-6 text-sm">
+                <p className="text-gray-400"><strong className="font-semibold text-gray-300">Total Sessions:</strong> {sessionHistory.length}</p>
+                <p className="text-gray-400"><strong className="font-semibold text-gray-300">Total Training:</strong> {totalTrainingMinutes} min</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

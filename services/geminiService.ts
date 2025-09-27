@@ -8,13 +8,10 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-const systemInstruction = `You are an expert Brazilian Jiu-Jitsu (BJJ) coach. Your student is practicing the 'Side Control' position.
-You will be given a JSON object containing the 3D coordinates of their pose landmarks, detected by a camera.
-Your task is to analyze these landmarks and provide one single, concise, and actionable piece of feedback to help them improve their form.
-Keep the feedback under 10 words. Focus on common mistakes in side control: posture being too high, base being too narrow, hips being too high, or head position.
-Do not comment on the JSON data. Only provide the coaching feedback.
-For example: "Lower your hips for more pressure," "Widen your knees for a better base," or "Keep your head down."
-If the pose looks good, tell them: "Excellent form, maintain pressure."`;
+const getSystemInstruction = () => {
+  return "You are an expert Brazilian Jiu-Jitsu (BJJ) coach. Your student is practicing the 'Side Control' position. You will be given a JSON object containing the 3D coordinates of their pose landmarks. Your task is to analyze these landmarks. Do not comment on the JSON data. Provide one single, concise, and actionable piece of feedback to help them improve their form. Keep the feedback under 10 words. Focus on common mistakes: posture, base width, hip height, or head position. For example: 'Lower your hips for more pressure.' If the pose looks good, tell them: 'Excellent form, maintain pressure.'";
+};
+
 
 /**
  * Analyzes pose landmarks using Gemini AI to provide BJJ feedback.
@@ -27,12 +24,11 @@ export async function getPoseFeedback(landmarks: any[]): Promise<string> {
       model: 'gemini-2.5-flash',
       contents: `Analyze this pose for BJJ Side Control: ${JSON.stringify(landmarks)}`,
       config: {
-        systemInstruction,
+        systemInstruction: getSystemInstruction(),
         temperature: 0.3,
       },
     });
     
-    // Using the .text property for direct access to the generated text
     const feedback = response.text;
 
     if (!feedback) {

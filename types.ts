@@ -12,4 +12,5 @@ export interface AppSettings {
   showSkeleton: boolean;
   skeletonColor: string;
   skeletonThickness: 2 | 5 | 8; // Thin, Normal, Thick
+  drillLayout: 'immersive' | 'dashboard';
 }

@@ -11,7 +11,7 @@ export default function Header({ onNavigate, currentPage }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const linkClasses = (page: Page) => 
-    `px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+    `px-4 py-2 rounded-lg text-base font-semibold transition-all duration-200 ${
       currentPage === page 
       ? 'bg-[#58A6FF]/10 text-[#58A6FF]' 
       : 'text-gray-400 hover:text-[#F0F6FC] hover:bg-gray-800/60'
@@ -22,7 +22,7 @@ export default function Header({ onNavigate, currentPage }: HeaderProps) {
     setIsMenuOpen(false);
   }
 
-  const logoutButtonClasses = "bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-[#F0F6FC] px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200";
+  const logoutButtonClasses = "bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-[#F0F6FC] px-4 py-2 rounded-lg text-base font-semibold transition-colors duration-200";
 
   return (
     <header className="w-full bg-[#0D1117]/80 backdrop-blur-md border-b border-gray-800/50 sticky top-0 z-50">
@@ -33,7 +33,7 @@ export default function Header({ onNavigate, currentPage }: HeaderProps) {
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center gap-3 cursor-pointer rounded-lg p-2 -ml-2 hover:bg-gray-800/60 transition-colors duration-200" onClick={() => handleNavClick('home')}>
               <JjIcon />
-              <span className="hidden sm:block text-[#F0F6FC] text-lg font-semibold tracking-wider">JIU-JITSU TRAINING</span>
+              <span className="hidden sm:block text-[#F0F6FC] text-xl font-semibold tracking-wider">JIU-JITSU TRAINING</span>
             </div>
           </div>
 

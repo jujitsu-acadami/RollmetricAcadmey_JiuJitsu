@@ -10,6 +10,7 @@ const defaultSettings: AppSettings = {
   showSkeleton: true,
   skeletonColor: '#7FFF00', // Lime Green
   skeletonThickness: 5, // Normal
+  drillLayout: 'immersive',
 };
 
 const settingsStorageKey = 'bjjAiCoachSettings';
@@ -57,7 +58,12 @@ export default function App() {
       case 'home':
         return <HomePage onNavigate={handleNavigate} sessionHistory={sessionHistory} />;
       case 'drill':
-        return <DrillPage onSessionEnd={handleSessionEnd} settings={settings} />;
+        return <DrillPage 
+                  onSessionEnd={handleSessionEnd} 
+                  settings={settings} 
+                  onNavigate={handleNavigate}
+                  onSettingsChange={handleSettingsChange}
+                />;
       case 'account':
         return <AccountPage 
                   sessionHistory={sessionHistory} 
