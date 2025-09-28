@@ -11,6 +11,7 @@ const defaultSettings: AppSettings = {
   skeletonColor: '#7FFF00', // Lime Green
   skeletonThickness: 5, // Normal
   drillLayout: 'immersive',
+  focusArea: ['side-control', 'mount'], // Default focus area
 };
 
 const settingsStorageKey = 'bjjAiCoachSettings';

@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { PoseLandmarker, DrawingUtils, FilesetResolver } from '@mediapipe/tasks-vision';
-import { Session, AppSettings, Page, Drill, SessionState } from '../types';
+import { Session, AppSettings, Page, Drill, SessionState, KpiType } from '../types';
 import KpiPanel from './KpiPanel';
 import { getPoseFeedback } from '../services/geminiService';
 import LoadingOverlay from './LoadingOverlay';
 import LiveView from './LiveView';
 import FeedbackPanel from './FeedbackPanel';
+import { ALL_DRILLS, DRILL_CATEGORIES } from '../DrillData';
 
 interface DrillPageProps {
   onSessionEnd: (sessionData: Session) => void;
@@ -14,16 +15,10 @@ interface DrillPageProps {
   onSettingsChange: (settings: AppSettings) => void;
 }
 
-type KpiType = {
-  postureHeight: number | null;
-  baseWidth: number | null;
-  hipHeight: number | null;
-};
+type SessionTitleDisplayConfig = { type: 'title'; value: string; };
+type SessionDropdownDisplayConfig = { type: 'dropdown'; label: string; items: string[]; };
+type SessionDisplayConfig = SessionTitleDisplayConfig | SessionDropdownDisplayConfig;
 
-const drills: { id: Drill, name: string }[] = [
-    { id: 'side-control', name: 'SIDE CONTROL' },
-    { id: 'mount', name: 'MOUNT' },
-];
 
 const LayoutToggleButton = ({ layout, onClick }: { layout: string, onClick: () => void }) => (
     <button onClick={onClick} className="w-full flex items-center justify-center gap-2 bg-[#2d2d2d] text-gray-300 hover:text-[#F0F6FC] py-3 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] transition-colors" title={`Switch to ${layout === 'immersive' ? 'Dashboard' : 'Immersive'} View`}>
@@ -40,6 +35,20 @@ const LayoutToggleButton = ({ layout, onClick }: { layout: string, onClick: () =
     </button>
 );
 
+const SessionTitleDisplay = ({ displayConfig, isMobile = false }: { displayConfig: SessionDisplayConfig | null, isMobile?: boolean }) => {
+  if (!displayConfig) return null;
+
+  const desktopTitleClasses = "text-[#F0F6FC] text-5xl font-bold tracking-tighter";
+  const mobileTitleClasses = "text-base font-bold text-white";
+  const titleClasses = isMobile ? mobileTitleClasses : desktopTitleClasses;
+  const Tag = isMobile ? 'p' : 'h2';
+
+  // Simplified logic: The display text is either the 'value' for titles or the 'label' for dropdown-like summaries.
+  const displayText = displayConfig.type === 'title' ? displayConfig.value : displayConfig.label;
+
+  return <Tag className={titleClasses}>{displayText}</Tag>;
+};
+
 
 export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettingsChange }: DrillPageProps) {
   const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
@@ -52,7 +61,10 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const [kpis, setKpis] = useState<KpiType>({ postureHeight: null, baseWidth: null, hipHeight: null });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [currentDrill, setCurrentDrill] = useState<Drill>('side-control');
+  const [currentDrill, setCurrentDrill] = useState<Drill>(settings.focusArea[0] || 'side-control');
+  
+  const [kpiHistory, setKpiHistory] = useState<KpiType[]>([]);
+  const [feedbackLog, setFeedbackLog] = useState<Set<string>>(new Set());
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,6 +72,74 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const lastAnalysisTime = useRef<number>(0);
   
   const isSessionActive = sessionState === 'running';
+
+  const availableDrills = useMemo(() => {
+    const focusArea = settings.focusArea || [];
+    if (focusArea.length === 0) return [];
+    return ALL_DRILLS.filter(drill => focusArea.includes(drill.id));
+  }, [settings.focusArea]);
+
+  const sessionDisplay = useMemo<SessionDisplayConfig | null>(() => {
+    const { focusArea } = settings;
+    if (focusArea.length === 0) {
+      return { type: 'title', value: 'NO DRILL SELECTED' };
+    }
+    if (focusArea.length === 1) {
+      const drillName = ALL_DRILLS.find(d => d.id === focusArea[0])?.name.toUpperCase() || 'DRILL';
+      return { type: 'title', value: drillName };
+    }
+    if (focusArea.length === ALL_DRILLS.length) {
+      return { type: 'title', value: 'ALL POSITIONS' };
+    }
+
+    const fullySelectedCategories: string[] = [];
+    const partiallySelectedCategories: string[] = [];
+    const focusAreaSet = new Set(focusArea);
+
+    for (const category of DRILL_CATEGORIES) {
+      const categoryDrills = ALL_DRILLS.filter(d => d.category === category);
+      const categoryDrillIds = categoryDrills.map(d => d.id);
+      const selectedInCategoryCount = categoryDrillIds.filter(id => focusAreaSet.has(id)).length;
+
+      if (selectedInCategoryCount === categoryDrills.length && selectedInCategoryCount > 0) {
+        fullySelectedCategories.push(category);
+      } else if (selectedInCategoryCount > 0) {
+        partiallySelectedCategories.push(category);
+      }
+    }
+
+    if (fullySelectedCategories.length === 1 && partiallySelectedCategories.length === 0) {
+      return { type: 'title', value: fullySelectedCategories[0].toUpperCase() };
+    }
+    if (fullySelectedCategories.length > 1 && partiallySelectedCategories.length === 0) {
+      return {
+        type: 'dropdown',
+        label: `${fullySelectedCategories.length} CATEGORIES`,
+        items: fullySelectedCategories,
+      };
+    }
+
+    // All other cases are a custom mix of drills.
+    const selectedDrills = ALL_DRILLS
+      .filter(drill => focusAreaSet.has(drill.id))
+      .map(drill => drill.name);
+    return {
+      type: 'dropdown',
+      label: `${focusArea.length} CUSTOM DRILLS`,
+      items: selectedDrills,
+    };
+  }, [settings.focusArea]);
+
+
+  useEffect(() => {
+    const isCurrentDrillAvailable = availableDrills.some(d => d.id === currentDrill);
+    if (availableDrills.length > 0 && !isCurrentDrillAvailable) {
+        setCurrentDrill(availableDrills[0].id);
+    } else if (availableDrills.length === 0) {
+        setFeedback("No drills selected. Go to Account > Settings to choose your focus area.");
+    }
+  }, [availableDrills, currentDrill]);
+
 
   const handleToggleLayout = () => {
     const newLayout = settings.drillLayout === 'immersive' ? 'dashboard' : 'immersive';
@@ -165,14 +245,16 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
             hipHeight: midHipY * 100
           };
           setKpis(newKpis);
+          setKpiHistory(prev => [...prev, newKpis]);
           
           const now = performance.now();
           if (now - lastAnalysisTime.current > 3000 && !isAnalyzing) {
             setIsAnalyzing(true);
             lastAnalysisTime.current = now;
-            getPoseFeedback(landmarks, currentDrill).then(newFeedback => {
+            getPoseFeedback(landmarks, currentDrill, settings.focusArea).then(newFeedback => {
               if (newFeedback) {
                   setFeedback(newFeedback);
+                  setFeedbackLog(prev => new Set(prev).add(newFeedback));
                   const lowerCaseFeedback = newFeedback.toLowerCase();
                   const isPositiveFeedback = ['excellent', 'awesome', 'solid', 'consistent', 'great'].some(w => lowerCaseFeedback.includes(w));
                   if (!isPositiveFeedback) triggerHapticFeedback([50, 30, 50]);
@@ -247,6 +329,7 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   }, [poseLandmarker, selectedDeviceId]);
 
   const handleToggleSession = () => {
+    if (availableDrills.length === 0) return;
     triggerHapticFeedback(50);
     if (sessionState === 'running') {
       setSessionState('paused');
@@ -255,6 +338,8 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     } else { // 'idle' or 'paused'
       if (sessionState === 'idle') {
         setSessionStartTime(new Date());
+        setKpiHistory([]);
+        setFeedbackLog(new Set());
       }
       setSessionState('running');
       setFeedback("AI coach is warming up...");
@@ -264,15 +349,37 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const handleEndSession = () => {
     triggerHapticFeedback(100);
     if (sessionStartTime) {
+      const calculateAverages = (history: KpiType[]): KpiType => {
+        const sums = history.reduce((acc, kpi) => {
+          return {
+            postureHeight: acc.postureHeight + (kpi.postureHeight || 0),
+            baseWidth: acc.baseWidth + (kpi.baseWidth || 0),
+            hipHeight: acc.hipHeight + (kpi.hipHeight || 0),
+          };
+        }, { postureHeight: 0, baseWidth: 0, hipHeight: 0 });
+
+        const count = history.length || 1;
+        return {
+          postureHeight: sums.postureHeight / count,
+          baseWidth: sums.baseWidth / count,
+          hipHeight: sums.hipHeight / count,
+        };
+      };
+
       onSessionEnd({
         startTime: sessionStartTime,
         duration: (new Date().getTime() - sessionStartTime.getTime()) / 1000,
+        drill: currentDrill,
+        kpiAverages: calculateAverages(kpiHistory),
+        feedbackLog: Array.from(feedbackLog),
       });
     }
     setSessionState('idle');
     setSessionStartTime(null);
     setKpis({ postureHeight: null, baseWidth: null, hipHeight: null });
     setFeedback('Start the session to get feedback.');
+    setKpiHistory([]);
+    setFeedbackLog(new Set());
   };
   
   const isUserFacing = useMemo(() => {
@@ -286,10 +393,6 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     }
     return true;
   }, [selectedDeviceId, videoDevices]);
-
-  const activeDrillName = useMemo(() => {
-    return drills.find(d => d.id === currentDrill)?.name || 'Drill';
-  }, [currentDrill]);
 
   const sessionButtonText = useMemo(() => {
     if (sessionState === 'running') return 'Pause';
@@ -307,14 +410,15 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                     id={`drill-select-${isMobile}`}
                     value={currentDrill}
                     onChange={(e) => setCurrentDrill(e.target.value as Drill)}
-                    className="w-full bg-[#2d2d2d] text-gray-300 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-[#58A6FF] transition-all appearance-none disabled:opacity-50"
-                    disabled={sessionState !== 'idle'}
+                    className="w-full bg-[#2d2d2d] text-gray-300 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-[#58A6FF] transition-all appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={sessionState !== 'idle' || availableDrills.length === 0}
                 >
-                    {drills.map((drill) => (
+                    {availableDrills.map((drill) => (
                         <option key={drill.id} value={drill.id}>
                             {drill.name}
                         </option>
                     ))}
+                    {availableDrills.length === 0 && <option>Go to Settings</option>}
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
                     <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -367,10 +471,12 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-400 text-base">You're in</p>
-                <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">{activeDrillName}</h2>
+                <div className="mt-1">
+                  <SessionTitleDisplay displayConfig={sessionDisplay} />
+                </div>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors w-40">{sessionButtonText}</button>
+                <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors w-40 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
                 <button onClick={handleEndSession} className="bg-red-600 text-white py-4 px-8 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]" disabled={sessionState === 'idle'}>End Session</button>
               </div>
             </div>
@@ -388,12 +494,14 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
         <div className="hidden lg:flex w-full max-w-sm flex-shrink-0 flex-col gap-6 bg-[#1c1c1c] p-6 rounded-2xl">
             <div>
               <p className="text-gray-400 text-base">You're in</p>
-              <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter">{activeDrillName}</h2>
+              <div className="mt-1">
+                <SessionTitleDisplay displayConfig={sessionDisplay} />
+              </div>
             </div>
             <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
             {sessionState !== 'idle' ? <KpiPanel kpis={kpis} /> : <div className="h-[96px] bg-[#2d2d2d] rounded-lg flex items-center justify-center text-gray-400">KPIs appear here</div>}
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors">{sessionButtonText}</button>
+              <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
               <button onClick={handleEndSession} className="bg-red-600 text-white py-4 text-xl rounded-lg font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none" disabled={sessionState === 'idle'}>End Session</button>
             </div>
             <div className="border-t border-gray-700/50 pt-4 mt-auto flex flex-col gap-4">
@@ -412,15 +520,15 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                 <KpiPanel kpis={kpis} />
               </div>
             )}
-            <div className="ml-auto bg-black/40 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-semibold text-base text-right">
-                {activeDrillName}
+            <div className="ml-auto bg-black/40 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-semibold text-right">
+                <SessionTitleDisplay displayConfig={sessionDisplay} isMobile={true} />
             </div>
           </div>
           
           {/* Subtitle Feedback */}
           <div className="absolute bottom-48 left-4 right-4 flex justify-center">
             <p className="bg-black/60 backdrop-blur-sm text-[#58A6FF] font-medium text-center text-lg rounded-full px-6 py-3 shadow-lg">
-              {sessionState === 'running' ? (isAnalyzing ? 'Analyzing...' : feedback) : 'Session Paused'}
+              {sessionState === 'running' ? (isAnalyzing ? 'Analyzing...' : feedback) : (availableDrills.length > 0 ? 'Session Paused' : 'Select a drill in Settings')}
             </p>
           </div>
 
@@ -432,13 +540,14 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                        value={currentDrill}
                        onChange={(e) => setCurrentDrill(e.target.value as Drill)}
                        className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60"
-                       disabled={sessionState !== 'idle'}
+                       disabled={sessionState !== 'idle' || availableDrills.length === 0}
                    >
-                       {drills.map((drill) => (
+                       {availableDrills.map((drill) => (
                            <option key={drill.id} value={drill.id} className="bg-[#1c1c1c] font-semibold">
                                {drill.name}
                            </option>
                        ))}
+                       {availableDrills.length === 0 && <option>Go to Settings</option>}
                    </select>
                    <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -479,7 +588,7 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                    </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
-                    <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95">{sessionButtonText}</button>
+                    <button onClick={handleToggleSession} disabled={availableDrills.length === 0} className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95 disabled:bg-gray-600 disabled:cursor-not-allowed">{sessionButtonText}</button>
                     <button onClick={handleEndSession} disabled={sessionState === 'idle'} className="bg-red-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 transform active:scale-95 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]">End Session</button>
                 </div>
               </div>
