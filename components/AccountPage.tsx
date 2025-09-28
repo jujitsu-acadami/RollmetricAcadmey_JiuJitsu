@@ -295,6 +295,10 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
             {sessionHistory.slice().reverse().map((session) => {
               const isoString = session.startTime.toISOString();
               const isOpen = openSessions.has(isoString);
+              const drillName = session.drill === 'all' 
+                ? 'Flow Drill' 
+                : session.drill.replace(/-/g, ' ');
+
               return (
               <li 
                 key={isoString} 
@@ -314,7 +318,7 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                         </p>
                       </div>
                       <span className="hidden sm:inline-block text-gray-500 font-semibold uppercase text-sm bg-gray-700/50 px-3 py-1 rounded-md">
-                        {session.drill.replace(/-/g, ' ')}
+                        {drillName}
                       </span>
                    </div>
                   <div className="flex items-center gap-4">

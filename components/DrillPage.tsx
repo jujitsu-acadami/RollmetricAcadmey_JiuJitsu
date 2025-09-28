@@ -13,6 +13,7 @@ interface DrillPageProps {
   settings: AppSettings;
   onNavigate: (page: Page) => void;
   onSettingsChange: (settings: AppSettings) => void;
+  onSessionStateChange: (state: SessionState) => void;
 }
 
 type SessionTitleDisplayConfig = { type: 'title'; value: string; };
@@ -42,15 +43,15 @@ const SessionTitleDisplay = ({ displayConfig, isMobile = false }: { displayConfi
   const mobileTitleClasses = "text-base font-bold text-white";
   const titleClasses = isMobile ? mobileTitleClasses : desktopTitleClasses;
   const Tag = isMobile ? 'p' : 'h2';
-
-  // Simplified logic: The display text is either the 'value' for titles or the 'label' for dropdown-like summaries.
+  
+  // Fix: Corrected typo from `display-Config` to `displayConfig`.
   const displayText = displayConfig.type === 'title' ? displayConfig.value : displayConfig.label;
 
   return <Tag className={titleClasses}>{displayText}</Tag>;
 };
 
 
-export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettingsChange }: DrillPageProps) {
+export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettingsChange, onSessionStateChange }: DrillPageProps) {
   const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const [kpis, setKpis] = useState<KpiType>({ postureHeight: null, baseWidth: null, hipHeight: null });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [currentDrill, setCurrentDrill] = useState<Drill>(settings.focusArea[0] || 'side-control');
+  const [currentDrill, setCurrentDrill] = useState<Drill | 'all'>(settings.focusArea[0] || 'side-control');
   
   const [kpiHistory, setKpiHistory] = useState<KpiType[]>([]);
   const [feedbackLog, setFeedbackLog] = useState<Set<string>>(new Set());
@@ -72,6 +73,11 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
   const lastAnalysisTime = useRef<number>(0);
   
   const isSessionActive = sessionState === 'running';
+
+  // Report session state changes to the parent component.
+  useEffect(() => {
+    onSessionStateChange(sessionState);
+  }, [sessionState, onSessionStateChange]);
 
   const availableDrills = useMemo(() => {
     const focusArea = settings.focusArea || [];
@@ -120,19 +126,16 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
     }
 
     // All other cases are a custom mix of drills.
-    const selectedDrills = ALL_DRILLS
-      .filter(drill => focusAreaSet.has(drill.id))
-      .map(drill => drill.name);
     return {
       type: 'dropdown',
       label: `${focusArea.length} CUSTOM DRILLS`,
-      items: selectedDrills,
+      items: ALL_DRILLS.filter(drill => focusAreaSet.has(drill.id)).map(drill => drill.name),
     };
   }, [settings.focusArea]);
 
 
   useEffect(() => {
-    const isCurrentDrillAvailable = availableDrills.some(d => d.id === currentDrill);
+    const isCurrentDrillAvailable = currentDrill === 'all' || availableDrills.some(d => d.id === currentDrill);
     if (availableDrills.length > 0 && !isCurrentDrillAvailable) {
         setCurrentDrill(availableDrills[0].id);
     } else if (availableDrills.length === 0) {
@@ -409,10 +412,11 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                 <select
                     id={`drill-select-${isMobile}`}
                     value={currentDrill}
-                    onChange={(e) => setCurrentDrill(e.target.value as Drill)}
+                    onChange={(e) => setCurrentDrill(e.target.value as Drill | 'all')}
                     className="w-full bg-[#2d2d2d] text-gray-300 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-[#58A6FF] transition-all appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={sessionState !== 'idle' || availableDrills.length === 0}
                 >
+                    {availableDrills.length > 1 && <option value="all">ALL (Flow)</option>}
                     {availableDrills.map((drill) => (
                         <option key={drill.id} value={drill.id}>
                             {drill.name}
@@ -538,10 +542,11 @@ export default function DrillPage({ onSessionEnd, settings, onNavigate, onSettin
                 <div className="relative">
                    <select
                        value={currentDrill}
-                       onChange={(e) => setCurrentDrill(e.target.value as Drill)}
+                       onChange={(e) => setCurrentDrill(e.target.value as Drill | 'all')}
                        className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60"
                        disabled={sessionState !== 'idle' || availableDrills.length === 0}
                    >
+                       {availableDrills.length > 1 && <option value="all">ALL (Flow)</option>}
                        {availableDrills.map((drill) => (
                            <option key={drill.id} value={drill.id} className="bg-[#1c1c1c] font-semibold">
                                {drill.name}

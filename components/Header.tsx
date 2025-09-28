@@ -5,9 +5,10 @@ import { JjIcon } from '../assets/JjIcon';
 interface HeaderProps {
   onNavigate: (page: Page) => void;
   currentPage: Page;
+  isHidden?: boolean;
 }
 
-export default function Header({ onNavigate, currentPage }: HeaderProps) {
+export default function Header({ onNavigate, currentPage, isHidden }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const linkClasses = (page: Page) => 
@@ -24,8 +25,14 @@ export default function Header({ onNavigate, currentPage }: HeaderProps) {
 
   const logoutButtonClasses = "bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-[#F0F6FC] px-4 py-2 rounded-lg text-base font-semibold transition-colors duration-200";
 
+  const headerClasses = `
+    w-full bg-[#0D1117]/80 backdrop-blur-md border-b border-gray-800/50 sticky top-0 z-50
+    transition-transform duration-300 ease-in-out
+    ${isHidden ? '-translate-y-full md:translate-y-0' : 'translate-y-0'}
+  `;
+
   return (
-    <header className="w-full bg-[#0D1117]/80 backdrop-blur-md border-b border-gray-800/50 sticky top-0 z-50">
+    <header className={headerClasses}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative flex items-center justify-between h-16">
           

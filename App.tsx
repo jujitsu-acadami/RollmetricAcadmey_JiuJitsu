@@ -3,7 +3,7 @@ import Header from './components/Header';
 import HomePage from './components/HomePage';
 import DrillPage from './components/DrillPage';
 import AccountPage from './components/AccountPage';
-import { Page, Session, AppSettings } from './types';
+import { Page, Session, AppSettings, SessionState } from './types';
 
 const defaultSettings: AppSettings = {
   modelComplexity: 'lite',
@@ -19,6 +19,7 @@ const settingsStorageKey = 'bjjAiCoachSettings';
 export default function App() {
   const [page, setPage] = useState<Page>('home');
   const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
+  const [isDrillSessionActive, setIsDrillSessionActive] = useState(false);
   
   // Initialize settings from localStorage or fall back to defaults
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -44,6 +45,11 @@ export default function App() {
     setPage('account');
   };
 
+  const handleDrillSessionStateChange = (state: SessionState) => {
+    // The header should be hidden when the session is running or paused.
+    setIsDrillSessionActive(state === 'running' || state === 'paused');
+  };
+
   // This function now saves settings to localStorage before updating the state
   const handleSettingsChange = (newSettings: AppSettings) => {
     try {
@@ -64,6 +70,7 @@ export default function App() {
                   settings={settings} 
                   onNavigate={handleNavigate}
                   onSettingsChange={handleSettingsChange}
+                  onSessionStateChange={handleDrillSessionStateChange}
                 />;
       case 'account':
         return <AccountPage 
@@ -78,7 +85,11 @@ export default function App() {
   
   return (
     <div className="min-h-screen bg-[#0D1117] text-[#F0F6FC] flex flex-col">
-      <Header onNavigate={handleNavigate} currentPage={page} />
+      <Header 
+        onNavigate={handleNavigate} 
+        currentPage={page} 
+        isHidden={isDrillSessionActive && page === 'drill'}
+      />
       <main className={`flex-grow flex flex-col ${page === 'drill' ? '' : 'items-center p-4 sm:p-6 lg:p-8'}`}>
         {renderPage()}
       </main>

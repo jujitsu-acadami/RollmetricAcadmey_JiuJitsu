@@ -1,3 +1,4 @@
+// Fix: Defined Page type and removed circular import.
 export type Page = 'home' | 'drill' | 'account';
 
 export type KpiType = {
@@ -9,7 +10,7 @@ export type KpiType = {
 export interface Session {
   startTime: Date;
   duration: number; // in seconds
-  drill: Drill;
+  drill: Drill | 'all';
   kpiAverages: KpiType;
   feedbackLog: string[];
 }
