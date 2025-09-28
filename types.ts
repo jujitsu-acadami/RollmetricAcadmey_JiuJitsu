@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Fix: Defined Page type and removed circular import.
 export type Page = 'home' | 'drill' | 'account';
 
@@ -5,6 +7,8 @@ export type KpiType = {
   postureHeight: number | null;
   baseWidth: number | null;
   hipHeight: number | null;
+  spineAngle: number | null;
+  kneeToElbow: number | null;
 };
 
 export interface Session {
@@ -50,4 +54,13 @@ export interface AppSettings {
   skeletonThickness: 2 | 5 | 8; // Thin, Normal, Thick
   drillLayout: 'immersive' | 'dashboard';
   focusArea: Drill[]; // User's selected drills
+  enableAudioFeedback: boolean;
 }
+
+// Context for settings to avoid prop drilling
+export interface SettingsContextType {
+  settings: AppSettings;
+  onSettingsChange: (newSettings: AppSettings) => void;
+}
+
+export const SettingsContext = React.createContext<SettingsContextType | null>(null);

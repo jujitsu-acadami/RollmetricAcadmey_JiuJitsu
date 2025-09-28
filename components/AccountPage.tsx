@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Session, AppSettings, ModelComplexity, Drill, DrillCategory } from '../types';
+import React, { useState, useEffect, useContext } from 'react';
+import { Session, AppSettings, ModelComplexity, Drill, DrillCategory, SettingsContext } from '../types';
 import { ALL_DRILLS, DRILL_CATEGORIES } from '../DrillData';
 
 interface AccountPageProps {
   sessionHistory: Session[];
-  settings: AppSettings;
-  onSettingsChange: (settings: AppSettings) => void;
 }
 
 const complexityOptions: { id: ModelComplexity; label: string }[] = [
@@ -34,7 +32,11 @@ const AccordionIcon = ({ isOpen }: { isOpen: boolean }) => (
 );
 
 
-export default function AccountPage({ sessionHistory, settings, onSettingsChange }: AccountPageProps) {
+export default function AccountPage({ sessionHistory }: AccountPageProps) {
+  const settingsContext = useContext(SettingsContext);
+  if (!settingsContext) throw new Error("AccountPage must be used within a SettingsProvider");
+  const { settings, onSettingsChange } = settingsContext;
+
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
   const [openSessions, setOpenSessions] = useState<Set<string>>(new Set());
   const [isDrillSettingsOpen, setIsDrillSettingsOpen] = useState(true);
@@ -217,7 +219,21 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
              Personalization
            </h3>
            <div className="space-y-6">
-              {/* Skeletonless Tracking Toggle */}
+              {/* Audio Feedback Toggle */}
+               <div className="flex items-center justify-between">
+                <label htmlFor="audio-toggle" className="text-gray-300 font-medium text-base lg:text-lg">Audio Feedback</label>
+                <button
+                  id="audio-toggle"
+                  role="switch"
+                  aria-checked={localSettings.enableAudioFeedback}
+                  onClick={() => setLocalSettings({ ...localSettings, enableAudioFeedback: !localSettings.enableAudioFeedback })}
+                  className={`${localSettings.enableAudioFeedback ? 'bg-[#58A6FF]' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#58A6FF] focus:ring-offset-2 focus:ring-offset-[#1c1c1c]`}
+                >
+                  <span className={`${localSettings.enableAudioFeedback ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
+                </button>
+              </div>
+
+              {/* Skeleton Overlay Toggle */}
               <div className="flex items-center justify-between">
                 <label htmlFor="skeleton-toggle" className="text-gray-300 font-medium text-base lg:text-lg">Skeleton Overlay</label>
                 <button
@@ -337,6 +353,8 @@ export default function AccountPage({ sessionHistory, settings, onSettingsChange
                             <div className="flex justify-between"><dt className="text-gray-400">Posture H:</dt><dd className="font-mono text-gray-200">{session.kpiAverages.postureHeight?.toFixed(1) || 'N/A'}</dd></div>
                             <div className="flex justify-between"><dt className="text-gray-400">Base W:</dt><dd className="font-mono text-gray-200">{session.kpiAverages.baseWidth?.toFixed(1) || 'N/A'}</dd></div>
                             <div className="flex justify-between"><dt className="text-gray-400">Hip H:</dt><dd className="font-mono text-gray-200">{session.kpiAverages.hipHeight?.toFixed(1) || 'N/A'}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">Spine Angle:</dt><dd className="font-mono text-gray-200">{session.kpiAverages.spineAngle?.toFixed(1) || 'N/A'}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">Knee-Elbow:</dt><dd className="font-mono text-gray-200">{session.kpiAverages.kneeToElbow?.toFixed(1) || 'N/A'}</dd></div>
                          </dl>
                       </div>
                       <div>
