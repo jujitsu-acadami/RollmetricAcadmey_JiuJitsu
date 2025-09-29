@@ -30,14 +30,14 @@ const LayoutToggleButton = ({ layout, onClick }: { layout: string, onClick: () =
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4h4m12 0h-4v4m-4 4h4v4h-4v-4zm0 0V8m0 8v-4m-4 4H8v-4h4v4z" />
         </svg>
        )}
-        <span>{layout === 'immersive' ? 'Dashboard' : 'Immersive'}</span>
+        <span className="truncate">{layout === 'immersive' ? 'Dashboard' : 'Immersive'}</span>
     </button>
 );
 
 const SessionTitleDisplay = ({ displayConfig }: { displayConfig: SessionDisplayConfig | null }) => {
   if (!displayConfig) return null;
   const displayText = displayConfig.type === 'title' ? displayConfig.value : displayConfig.label;
-  return <h2 className="text-[#F0F6FC] text-5xl font-bold tracking-tighter truncate">{displayText}</h2>;
+  return <h2 className="text-[#F0F6FC] text-4xl lg:text-5xl font-bold tracking-tighter truncate">{displayText}</h2>;
 };
 
 const ImmersivePanelToggleButton = ({ isOpen, onClick, disabled }: { isOpen: boolean, onClick: () => void, disabled?: boolean }) => (
@@ -65,18 +65,35 @@ const calculateAngle = (a: Landmark, b: Landmark, c: Landmark) => {
   return degrees;
 };
 
-const NoDrillsSelected = ({ onNavigate }: { onNavigate: (page: Page) => void }) => (
-  <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70 backdrop-blur-sm p-4 text-center">
-    <h2 className="text-2xl font-bold text-white mb-2">No Drills Selected</h2>
-    <p className="text-gray-300 max-w-sm mb-6">To start your training session, please go to your account and select at least one drill in your Focus Area.</p>
-    <button
-      onClick={() => onNavigate('account')}
-      className="bg-[#58A6FF] text-black py-3 px-6 rounded-lg font-bold text-lg hover:bg-blue-500 transition-colors shadow-lg"
-    >
-      Go to Settings
-    </button>
-  </div>
-);
+const NoDrillsSelected = ({ onNavigate, isDashboard = false }: { onNavigate: (page: Page) => void, isDashboard?: boolean }) => {
+  if (isDashboard) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+        <h3 className="text-xl font-bold text-white mb-2">No Drills Selected</h3>
+        <p className="text-gray-300 mb-6">Please select a drill in your Account Settings to begin.</p>
+        <button
+          onClick={() => onNavigate('account')}
+          className="bg-[#58A6FF] text-black py-2 px-5 rounded-lg font-semibold text-base hover:bg-blue-500 transition-colors"
+        >
+          Go to Settings
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-black/70 backdrop-blur-sm p-4 text-center">
+      <h2 className="text-2xl font-bold text-white mb-2">No Drills Selected</h2>
+      <p className="text-gray-300 max-w-sm mb-6">To start your training session, please go to your account and select at least one drill in your Focus Area.</p>
+      <button
+        onClick={() => onNavigate('account')}
+        className="bg-[#58A6FF] text-black py-3 px-6 rounded-lg font-bold text-lg hover:bg-blue-500 transition-colors shadow-lg"
+      >
+        Go to Settings
+      </button>
+    </div>
+  );
+};
 
 
 export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChange }: DrillPageProps) {
@@ -98,7 +115,8 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   
   const [kpiHistory, setKpiHistory] = useState<KpiType[]>([]);
   const [feedbackLog, setFeedbackLog] = useState<Set<string>>(new Set());
-  const [isKpiPanelVisible, setIsKpiPanelVisible] = useState(false);
+  const [isImmersiveKpiPanelVisible, setIsImmersiveKpiPanelVisible] = useState(false);
+  const [isMobileKpiPanelOpen, setIsMobileKpiPanelOpen] = useState(false);
 
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -112,7 +130,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   useEffect(() => {
     onSessionStateChange(sessionState);
     if (sessionState === 'idle') {
-      setIsKpiPanelVisible(false); // Close panel when session ends
+      setIsImmersiveKpiPanelVisible(false); // Close panel when session ends
     }
   }, [sessionState, onSessionStateChange]);
 
@@ -184,6 +202,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   const handleToggleLayout = () => {
     const newLayout = settings.drillLayout === 'immersive' ? 'dashboard' : 'immersive';
     onSettingsChange({ ...settings, drillLayout: newLayout });
+    setIsImmersiveKpiPanelVisible(false); // Reset panel state on layout change
   };
 
   const triggerHapticFeedback = (pattern: VibratePattern) => {
@@ -514,7 +533,6 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
                           {drill.name}
                       </option>
                   ))}
-                  {availableDrills.length === 0 && <option>Go to Settings</option>}
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
                   <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -546,6 +564,16 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
           </div>
       </div>
       <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+    </div>
+  );
+
+  const MobileKpiSummary = () => (
+    <div className="flex items-center justify-around w-full text-xs text-center">
+        <div className="flex flex-col"><span className="text-gray-400">P</span><span className="font-bold text-white">{kpis.postureHeight?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">B</span><span className="font-bold text-white">{kpis.baseWidth?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">H</span><span className="font-bold text-white">{kpis.hipHeight?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">S</span><span className="font-bold text-white">{kpis.spineAngle?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">K</span><span className="font-bold text-white">{kpis.kneeToElbow?.toFixed(0) || '--'}</span></div>
     </div>
   );
 
@@ -583,16 +611,16 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
                       <ImmersiveControlGroup />
                   </div>
                    <ImmersivePanelToggleButton 
-                        isOpen={isKpiPanelVisible} 
-                        onClick={() => setIsKpiPanelVisible(!isKpiPanelVisible)}
+                        isOpen={isImmersiveKpiPanelVisible} 
+                        onClick={() => setIsImmersiveKpiPanelVisible(!isImmersiveKpiPanelVisible)}
                         disabled={sessionState === 'idle'}
                      />
               </div>
               
               {/* Conditionally Visible KPI Panel */}
               {sessionState !== 'idle' && (
-                  <div className={`flex-shrink-0 bg-[#1c1c1c]/80 backdrop-blur-md rounded-r-2xl shadow-2xl border-l border-gray-700/50 p-6 transition-all duration-300 ${isKpiPanelVisible ? 'w-48 opacity-100' : 'w-0 opacity-0'}`}>
-                      <div className="w-40 h-full">
+                  <div className={`flex-shrink-0 bg-[#1c1c1c]/80 backdrop-blur-md rounded-r-2xl shadow-2xl border-l border-gray-700/50 p-4 transition-all duration-300 ${isImmersiveKpiPanelVisible ? 'w-48 opacity-100' : 'w-0 opacity-0'}`}>
+                      <div className="w-full h-full">
                           <KpiPanel kpis={kpis} layout="vertical" />
                       </div>
                   </div>
@@ -605,29 +633,29 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
       {/* --- Dashboard Mode Desktop UI --- */}
       {!isLoading && !error && settings.drillLayout === 'dashboard' && (
         <div className="hidden lg:flex lg:w-full lg:max-w-sm flex-shrink-0 flex-col gap-6 bg-[#1c1c1c] p-6 rounded-2xl">
-            <div>
-              <p className="text-gray-400 text-base">You're in</p>
-              <div className="mt-1">
-                <SessionTitleDisplay displayConfig={sessionDisplay} />
-              </div>
-            </div>
-            <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
-            
-            {sessionState !== 'idle' ? (
-              <KpiPanel kpis={kpis} layout="horizontal" />
-            ) : (
-                <div className="h-[96px] flex items-center justify-center text-center text-gray-400 bg-[#2d2d2d] rounded-lg">
-                    KPIs appear here when session starts
+          {availableDrills.length > 0 ? (
+            <>
+              <div>
+                <p className="text-gray-400 text-base">You're in</p>
+                <div className="mt-1">
+                  <SessionTitleDisplay displayConfig={sessionDisplay} />
                 </div>
-            )}
+              </div>
+              <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
+              
+              <KpiPanel kpis={kpis} layout="horizontal" />
 
-            <DashboardControlGroup />
+              <DashboardControlGroup />
 
-            {/* Main session buttons pushed to the bottom */}
-            <div className="grid grid-cols-2 gap-4 mt-auto">
-              <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
-              <button onClick={handleEndSession} className="bg-transparent text-gray-400 hover:bg-red-600/20 hover:text-red-400 py-4 text-xl rounded-lg font-bold transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400" disabled={sessionState === 'idle'}>End Session</button>
-            </div>
+              {/* Main session buttons pushed to the bottom */}
+              <div className="grid grid-cols-2 gap-4 mt-auto">
+                <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
+                <button onClick={handleEndSession} className="bg-transparent text-gray-400 hover:bg-red-600/20 hover:text-red-400 py-4 text-xl rounded-lg font-bold transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400" disabled={sessionState === 'idle'}>End Session</button>
+              </div>
+            </>
+          ) : (
+             <NoDrillsSelected onNavigate={onNavigate} isDashboard={true} />
+          )}
         </div>
       )}
 
@@ -636,19 +664,18 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
         <div className="lg:hidden absolute inset-0 z-20 p-4 flex flex-col justify-between pointer-events-none">
           {/* Top Floating Elements */}
           <div className="flex justify-between items-start flex-wrap gap-2 pointer-events-auto">
-            {sessionState !== 'idle' && (
-              <div className="bg-black/30 backdrop-blur-sm rounded-xl shadow-lg flex-shrink-0">
-                <KpiPanel kpis={kpis} />
-              </div>
-            )}
-            <div className="ml-auto bg-black/40 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-semibold text-right">
-                <p className="text-base font-bold text-white">{sessionDisplay?.type === 'title' ? sessionDisplay.value : sessionDisplay?.label}</p>
+            {/* THIS KPI PANEL IS REMOVED IN THE NEW DESIGN */}
+            <div className="ml-auto bg-black/40 backdrop-blur-sm text-white py-2 px-4 rounded-lg text-right">
+              <p className="text-sm text-gray-400">You're in</p>
+              <h2 className="text-xl font-bold text-white truncate">
+                {sessionDisplay?.type === 'title' ? sessionDisplay.value : sessionDisplay?.label}
+              </h2>
             </div>
           </div>
           
           {/* Subtitle Feedback */}
           <div className="absolute bottom-64 left-4 right-4 flex justify-center">
-            <p className="bg-black/60 backdrop-blur-sm text-[#58A6FF] font-medium text-center text-lg rounded-full px-6 py-3 shadow-lg">
+            <p className="bg-black/60 backdrop-blur-sm text-[#58A6FF] font-medium text-center text-lg lg:text-xl rounded-full px-6 py-3 shadow-lg">
               {sessionState === 'running' ? (isAnalyzing ? 'Analyzing...' : feedback) : (availableDrills.length > 0 ? 'Session Paused' : 'Select a drill in Settings')}
             </p>
           </div>
@@ -656,57 +683,72 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
           {/* Bottom Control Buttons */}
           <div className="absolute bottom-0 left-0 right-0 w-full px-4 pb-6 pt-10 bg-gradient-to-t from-black/60 to-transparent pointer-events-auto">
               <div className="flex flex-col gap-4">
-                <div className="relative">
-                   <select
-                       value={currentDrill}
-                       onChange={(e) => setCurrentDrill(e.target.value as Drill | 'all')}
-                       className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60 truncate"
-                       disabled={sessionState !== 'idle' || availableDrills.length === 0}
-                   >
-                       {availableDrills.length > 1 && <option value="all">ALL (Flow)</option>}
-                       {availableDrills.map((drill) => (
-                           <option key={drill.id} value={drill.id} className="bg-[#1c1c1c] font-semibold">
-                               {drill.name}
-                           </option>
-                       ))}
-                       {availableDrills.length === 0 && <option>Go to Settings</option>}
-                   </select>
-                   <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                
+                {/* NEW INTERACTIVE KPI BAR */}
+                {sessionState !== 'idle' && (
+                  <div className="w-full">
+                    <button 
+                      onClick={() => setIsMobileKpiPanelOpen(!isMobileKpiPanelOpen)}
+                      className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-2 px-3 rounded-lg font-semibold text-base transition-all flex items-center"
+                    >
+                      <MobileKpiSummary />
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 ml-auto transition-transform duration-300 ${isMobileKpiPanelOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isMobileKpiPanelOpen ? 'max-h-96 mt-2' : 'max-h-0'}`}>
+                      <div className="bg-[#2d2d2d]/80 backdrop-blur-sm rounded-lg p-2">
+                        <KpiPanel kpis={kpis} layout="vertical" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* SELECTORS ROW */}
+                <div className="flex items-center gap-4">
+                   <div className="relative flex-1">
+                       <select
+                           value={currentDrill}
+                           onChange={(e) => setCurrentDrill(e.target.value as Drill | 'all')}
+                           className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60 truncate"
+                           disabled={sessionState !== 'idle' || availableDrills.length === 0}
+                       >
+                           {availableDrills.length > 1 && <option value="all">ALL (Flow)</option>}
+                           {availableDrills.map((drill) => (
+                               <option key={drill.id} value={drill.id} className="bg-[#1c1c1c] font-semibold">
+                                   {drill.name}
+                               </option>
+                           ))}
+                           {availableDrills.length === 0 && <option>Go to Settings</option>}
+                       </select>
+                       <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                           <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                           </svg>
+                       </div>
                    </div>
-                   <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                       <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                       </svg>
+                   <div className="relative flex-1">
+                       <select
+                           value={selectedDeviceId}
+                           onChange={(e) => setSelectedDeviceId(e.target.value)}
+                           className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-4 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60 truncate"
+                           disabled={sessionState !== 'idle' || videoDevices.length <= 1}
+                       >
+                           {videoDevices.map((device, index) => (
+                               <option key={device.deviceId} value={device.deviceId} className="bg-[#1c1c1c] font-semibold">
+                                   {device.label || `Camera ${index + 1}`}
+                               </option>
+                           ))}
+                       </select>
+                       <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                           <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                           </svg>
+                       </div>
                    </div>
-               </div>
+                </div>
 
-                <div className="relative">
-                   <select
-                       value={selectedDeviceId}
-                       onChange={(e) => setSelectedDeviceId(e.target.value)}
-                       className="w-full bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 py-3 pl-12 pr-10 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] focus:outline-none focus:ring-2 focus:ring-white/50 transition-all appearance-none disabled:opacity-60 truncate"
-                       disabled={sessionState !== 'idle' || videoDevices.length <= 1}
-                   >
-                       {videoDevices.map((device, index) => (
-                           <option key={device.deviceId} value={device.deviceId} className="bg-[#1c1c1c] font-semibold">
-                               {device.label || `Camera ${index + 1}`}
-                           </option>
-                       ))}
-                   </select>
-                   <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                       </svg>
-                   </div>
-                   <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                       <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                       </svg>
-                   </div>
-               </div>
+                {/* MAIN ACTION BUTTONS */}
                 <div className="grid grid-cols-2 gap-4">
                     <button onClick={handleToggleSession} disabled={availableDrills.length === 0} className="bg-[#58A6FF] text-black py-4 rounded-lg font-bold text-xl hover:bg-blue-500 transition-colors shadow-lg transform active:scale-95 disabled:bg-gray-600 disabled:cursor-not-allowed">{sessionButtonText}</button>
                     <button onClick={handleEndSession} disabled={sessionState === 'idle'} className="bg-red-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 transform active:scale-95 disabled:bg-[#2d2d2d] disabled:opacity-50 disabled:shadow-none disabled:hover:bg-[#2d2d2d]">End Session</button>

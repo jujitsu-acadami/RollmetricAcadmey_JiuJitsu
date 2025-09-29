@@ -86,13 +86,17 @@ export default function App() {
   
   return (
     <SettingsContext.Provider value={settingsContextValue}>
-      <div className="min-h-screen bg-[#0D1117] text-[#F0F6FC] flex flex-col">
+      <div className="min-h-screen bg-[#0D1117] text-[#F0F6FC] flex flex-col relative">
         <Header 
           onNavigate={handleNavigate} 
           currentPage={page} 
           isHidden={isDrillSessionActive && page === 'drill'}
         />
-        <main className={`flex-grow flex flex-col ${page === 'drill' ? '' : 'items-center p-4 sm:p-6 lg:p-8'}`}>
+        <main className={`flex flex-col ${
+          page === 'drill' 
+          ? 'absolute inset-0 lg:static lg:flex-grow' 
+          : 'flex-grow items-center p-4 sm:p-6 lg:p-8'
+        }`}>
           {renderPage()}
         </main>
 

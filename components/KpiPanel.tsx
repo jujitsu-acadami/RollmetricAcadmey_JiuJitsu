@@ -15,8 +15,8 @@ const KpiCard = ({ label, value, unit = '', isCompact = false, dynamicFontSizeCl
     const displayValue = value !== null ? Math.round(value) : '--';
 
     const containerClasses = isCompact 
-      ? "p-2 text-center flex-1" // Removed background for boxless design
-      : "bg-transparent lg:bg-[#2d2d2d] p-1 rounded-lg text-center flex-1 lg:p-4";
+      ? "p-2 text-center flex-1" // Boxless design for vertical/immersive
+      : "bg-transparent p-1 rounded-lg text-center flex-1 lg:p-4"; // Consistent boxless design for horizontal/dashboard
 
     const labelClasses = isCompact
       ? `text-gray-300 font-medium whitespace-nowrap ${dynamicFontSizeClass}`
