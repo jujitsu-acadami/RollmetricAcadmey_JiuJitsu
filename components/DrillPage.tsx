@@ -289,7 +289,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
             const drawingUtils = new DrawingUtils(canvasCtx);
             const { skeletonColor, skeletonThickness } = settings;
             const lineWidth = skeletonThickness;
-            const landmarkRadius = skeletonThickness + 2;
+            const landmarkRadius = skeletonThickness / 2;
             drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, { color: skeletonColor, lineWidth });
             drawingUtils.drawLandmarks(landmarks, { color: skeletonColor, radius: landmarkRadius });
         }
