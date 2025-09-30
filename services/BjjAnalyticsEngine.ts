@@ -22,13 +22,10 @@ type Vector3 = { x: number; y: number; z: number };
 // Configuration interface for the engine to allow tuning
 export interface EngineConfig {
   historySize: number;
-  smoothingWindow: number;
-  velocityThreshold: number; // m/s to trigger 'MOVING' state
+  velocityThreshold: number; // in body-lengths/s
   idleFramesThreshold: number;
-  scrambleAccelThreshold: number; // m/s^2 for explosive acceleration
-  scrambleJerkThreshold: number; // m/s^3 for explosive change in acceleration
-  flowJerkThreshold: number; // Higher values make flow scoring stricter
-  balanceSwayFactor: number; // Multiplier for balance calculation
+  scrambleAccelThreshold: number; // in body-lengths/s^2
+  flowJerkThreshold: number; // in body-lengths/s^2
   explosivenessWindow: number; // Frames to check for peak acceleration
   moveSignaturePathLength: number; // Number of frames to define a move
 }
@@ -54,6 +51,10 @@ export class BjjAnalyticsEngine {
   private userState: 'IDLE' | 'MOVING' = 'IDLE';
   private idleFrameCounter: number = 0;
   
+  // --- New fields based on technical review ---
+  private emaCom?: Vector3;
+  private bodyScale?: number;
+
   // --- KPI-specific state ---
   private scrambleCount: number = 0;
   private lastScrambleTime: number = 0;
@@ -70,22 +71,24 @@ export class BjjAnalyticsEngine {
   private lastExplosivePower: number = 0;
   private framesSinceMoveStart: number | null = null;
   
-  // Reaction Time State
+  // --- New Reaction Time State (Decoupled) ---
   private isAwaitingReaction: boolean = false;
   private stimulusTime: number = 0;
   private lastReactionTime: number | null = null;
+  private lastOnsetTs?: number;
+  private quietMs = 200;
+  private onsetHoldMs = 80;
+  private onsetArmed = false;
+  private speedHistory: {t:number, s:number}[] = [];
 
 
   constructor(config: Partial<EngineConfig> = {}) {
     this.config = {
       historySize: 60,
-      smoothingWindow: 5,
-      velocityThreshold: 0.2,
+      velocityThreshold: 0.5, // Normalized: 0.2 m/s / 0.4m body scale = 0.5 bl/s
       idleFramesThreshold: 30,
-      scrambleAccelThreshold: 9.0,
-      scrambleJerkThreshold: 150.0,
-      flowJerkThreshold: 50,
-      balanceSwayFactor: 200,
+      scrambleAccelThreshold: 22.5, // Normalized: 9.0 m/s^2 / 0.4m body scale
+      flowJerkThreshold: 0.5, // Tuned for normalized speed jerk
       explosivenessWindow: 15, // ~0.5s at 30fps
       moveSignaturePathLength: 20, // ~0.66s path
       ...config,
@@ -96,6 +99,9 @@ export class BjjAnalyticsEngine {
     this.isAwaitingReaction = true;
     this.stimulusTime = performance.now();
     this.lastReactionTime = null;
+    this.onsetArmed = false;
+    this.lastOnsetTs = undefined;
+    this.speedHistory = []; // Clear history for a clean baseline
   }
 
   public update(worldLandmarks: Landmark[] | undefined, timestamp: number, sessionStartTime: number): EngineUpdateResult {
@@ -115,6 +121,9 @@ export class BjjAnalyticsEngine {
     const currentVelocity = this.frameHistory[0]?.velocity;
     const velocityMagnitude = currentVelocity ? this._vectorMagnitude(currentVelocity) : 0;
     
+    // Decoupled onset detection for reaction time
+    this._detectOnset(velocityMagnitude, timestamp);
+
     if (velocityMagnitude > this.config.velocityThreshold) {
       this.userState = 'MOVING';
       this.idleFrameCounter = 0;
@@ -126,15 +135,15 @@ export class BjjAnalyticsEngine {
     }
 
     if (this.userState === 'MOVING' && previousState === 'IDLE') {
-        this._onMovementStart(timestamp);
+        this._onMovementStart();
     } else if (this.userState === 'IDLE' && previousState === 'MOVING') {
         this._onMovementEnd();
     }
     
-    this._updateAdvancedMetrics(timestamp, sessionStartTime);
+    this._updateAdvancedMetrics(timestamp);
     
     const kpis = this._calculateAllKpis(velocityMagnitude, timestamp, sessionStartTime);
-    kpis.reactionTime = reactionTimeEvent; // Add the last reaction time to the KPI object
+    kpis.reactionTime = reactionTimeEvent;
     
     return {
         kpis,
@@ -162,18 +171,23 @@ export class BjjAnalyticsEngine {
       this.lastFrameTime = 0;
       this.minHipY = Infinity;
       this.maxHipY = -Infinity;
+      this.emaCom = undefined;
+      this.bodyScale = undefined;
+      this.speedHistory = [];
+      this.lastOnsetTs = undefined;
+      this.onsetArmed = false;
   }
   
   private _calculateAllKpis(velocityMagnitude: number, timestamp: number, sessionStartTime: number): AdvancedKpiType {
     const sessionDurationMs = timestamp - sessionStartTime;
 
-    const balance = this.userState === 'MOVING' ? this._calculateBalanceStability() : 100;
+    const balance = this._calculateBalanceStability();
     const posture = this._calculatePostureIntegrity();
-    const flow = this.userState === 'MOVING' ? this._calculateFlowRhythm() : 100;
+    const flow = this._calculateFlowRhythm();
 
     if(this.userState === 'MOVING' && flow !== null) {
       this.flowHistory.push(flow);
-      if(this.flowHistory.length > 100) this.flowHistory.shift(); // Keep last ~100 frames
+      if(this.flowHistory.length > 100) this.flowHistory.shift();
     }
 
     return {
@@ -194,17 +208,11 @@ export class BjjAnalyticsEngine {
     };
   }
 
-  private _onMovementStart(timestamp: number) {
+  private _onMovementStart() {
     this.framesSinceMoveStart = 0;
     this.lastExplosivePower = 0;
     this.currentMovePath = [];
-    if (this.isAwaitingReaction) {
-        this.lastReactionTime = timestamp - this.stimulusTime;
-        if (this.lastReactionTime > 0) { // Ensure no negative times
-            this.reactionTimeHistory.push(this.lastReactionTime);
-        }
-        this.isAwaitingReaction = false;
-    }
+    // Reaction time is now handled by _detectOnset
   }
 
   private _onMovementEnd() {
@@ -232,52 +240,77 @@ export class BjjAnalyticsEngine {
   }
 
   private _calculateKinematics(): void {
-    if (this.frameHistory.length < this.config.smoothingWindow) return;
+    if (this.frameHistory.length < 2) return;
 
     const currentFrame = this.frameHistory[0];
-    let comSum: Vector3 = { x: 0, y: 0, z: 0 };
-    for (let i = 0; i < this.config.smoothingWindow; i++) {
-        const com = this._calculateCoM(this.frameHistory[i].landmarks);
-        comSum = this._add(comSum, com);
-    }
-    currentFrame.com = this._scale(comSum, 1 / this.config.smoothingWindow);
-
-    if (this.userState === 'MOVING' && currentFrame.com) {
-        this.currentMovePath.push(currentFrame.com);
-        if (this.currentMovePath.length > this.config.moveSignaturePathLength) {
-            this.currentMovePath.shift();
-        }
-    }
-
     const prevFrame = this.frameHistory[1];
-    if (!prevFrame.com) return;
-    
+    const lm = currentFrame.landmarks;
+
+    // --- EMA Smoothing ---
+    const rawCom = this._calculateCoM(lm);
+    this.emaCom = this._emaV(this.emaCom, rawCom, 0.3);
+    currentFrame.com = this.emaCom;
+
+    // --- Body-Scale Normalization ---
+    const sW = this._vectorMagnitude(this._subtract(lm[LANDMARK_INDICES.LEFT_SHOULDER], lm[LANDMARK_INDICES.RIGHT_SHOULDER]));
+    const hW = this._vectorMagnitude(this._subtract(lm[LANDMARK_INDICES.LEFT_HIP], lm[LANDMARK_INDICES.RIGHT_HIP]));
+    const rawScale = Math.max(sW, hW);
+    this.bodyScale = this._ema(this.bodyScale ?? rawScale, rawScale, 0.2);
+    if (!this.bodyScale || this.bodyScale < 1e-3) return; // Quality gate
+
     const dt = (currentFrame.timestamp - prevFrame.timestamp) / 1000;
-    if (dt <= 0) return;
+    if (dt <= 0 || !prevFrame.com) return;
     
-    currentFrame.velocity = this._scale(this._subtract(currentFrame.com, prevFrame.com), 1 / dt);
-    
+    // --- Normalized Kinematics ---
+    currentFrame.velocity = this._scale(this._subtract(currentFrame.com, prevFrame.com), 1 / dt / this.bodyScale);
     if (prevFrame.velocity) {
        currentFrame.acceleration = this._scale(this._subtract(currentFrame.velocity, prevFrame.velocity), 1 / dt);
     }
-    
     if (prevFrame.acceleration) {
-        currentFrame.jerk = this._scale(this._subtract(currentFrame.acceleration, prevFrame.acceleration), 1/dt);
+        currentFrame.jerk = this._scale(this._subtract(currentFrame.acceleration, prevFrame.acceleration), 1 / dt);
+    }
+  }
+
+  private _detectOnset(speed: number, timestamp: number) {
+    const now = timestamp;
+    this.speedHistory.push({ t: now, s: speed });
+    this.speedHistory = this.speedHistory.filter(e => now - e.t < 500);
+    
+    const quietWindow = this.speedHistory.filter(e => now - e.t > 50 && now - e.t < this.quietMs);
+    
+    if (quietWindow.length > 4) this.onsetArmed = true;
+
+    if (!this.isAwaitingReaction || !this.onsetArmed) return;
+
+    const baseline = quietWindow.length ? quietWindow.reduce((a, b) => a + b.s, 0) / quietWindow.length : 0;
+    const noise = Math.sqrt((quietWindow.reduce((a, b) => a + (b.s - baseline) ** 2, 0) / (quietWindow.length || 1)));
+    const threshold = baseline + 3 * noise + 0.05; // Use a small floor for normalized speed
+    
+    const isAboveThreshold = speed > threshold;
+    if (isAboveThreshold) {
+      if (!this.lastOnsetTs) this.lastOnsetTs = now;
+      if (now - this.lastOnsetTs >= this.onsetHoldMs) {
+        this.lastReactionTime = now - this.stimulusTime;
+        this.reactionTimeHistory.push(this.lastReactionTime);
+        this.isAwaitingReaction = false;
+        this.onsetArmed = false;
+        this.lastOnsetTs = undefined;
+      }
+    } else {
+      this.lastOnsetTs = undefined;
     }
   }
 
   private _calculateIntensityEndurance(velocityMagnitude: number, timestamp: number): number {
-    const maxReasonableVelocity = 4.0;
+    const maxReasonableVelocity = 8.0; // Normalized: 4.0 m/s / 0.5m scale = 8.0 bl/s
     const instantIntensity = Math.min(100, (velocityMagnitude / maxReasonableVelocity) * 100);
 
     this.intensityHistory.push({ value: instantIntensity, timestamp });
     this.intensityHistory = this.intensityHistory.filter(entry => timestamp - entry.timestamp < 20000);
-
     if (this.intensityHistory.length < 10) return instantIntensity;
 
     const sessionAverage = this.intensityHistory.reduce((sum, entry) => sum + entry.value, 0) / this.intensityHistory.length;
-    const recentHistory = this.intensityHistory.slice(-10);
-    const recentAverage = recentHistory.reduce((sum, entry) => sum + entry.value, 0) / recentHistory.length;
+    const recentAverage = this.intensityHistory.slice(-10).reduce((sum, entry) => sum + entry.value, 0) / 10;
 
     const fatigueFactor = Math.max(0, (sessionAverage - recentAverage) / (sessionAverage + 1));
     const finalIntensity = instantIntensity * (1 - fatigueFactor * 0.5);
@@ -285,35 +318,39 @@ export class BjjAnalyticsEngine {
   }
 
   private _calculateFlowRhythm(): number | null {
-    if (!this.frameHistory[0]?.jerk) return 100;
-    const jerkMagnitude = this._vectorMagnitude(this.frameHistory[0].jerk);
-    const score = 100 - (jerkMagnitude / this.config.flowJerkThreshold) * 100;
-    return Math.max(0, Math.min(100, score));
+    if (this.frameHistory.length < 10) return 100;
+    const speeds = this.frameHistory.slice(0, 10).map(f => f.velocity ? this._vectorMagnitude(f.velocity) : null).filter((s): s is number => s !== null);
+    if (speeds.length < 5) return 100;
+
+    const jerks = [];
+    for (let i = 1; i < speeds.length; i++) {
+        jerks.push((speeds[i] - speeds[i-1]));
+    }
+    const avgAbsJerk = jerks.reduce((a, b) => a + Math.abs(b), 0) / jerks.length;
+    return Math.max(0, Math.min(100, 100 - (avgAbsJerk / this.config.flowJerkThreshold) * 100));
   }
 
-  private _updateAdvancedMetrics(timestamp: number, sessionStartTime: number): void {
+  private _updateAdvancedMetrics(timestamp: number): void {
     const frame = this.frameHistory[0];
     if (!frame) return;
 
-    if (frame.acceleration && frame.jerk) {
+    if (frame.acceleration) {
         const accMag = this._vectorMagnitude(frame.acceleration);
-        const jerkMag = this._vectorMagnitude(frame.jerk);
-        const isExplosive = accMag > this.config.scrambleAccelThreshold && jerkMag > this.config.scrambleJerkThreshold;
-        if (isExplosive && (timestamp - this.lastScrambleTime > 1500)) {
+        if (accMag > this.config.scrambleAccelThreshold && (timestamp - this.lastScrambleTime > 1500)) {
             this.scrambleCount++;
             this.lastScrambleTime = timestamp;
         }
     }
     
     if (frame.com) {
-        this.minHipY = Math.min(this.minHipY, frame.com.y);
-        this.maxHipY = Math.max(this.maxHipY, frame.com.y);
+        const rawComY = this._calculateCoM(frame.landmarks).y;
+        this.minHipY = Math.min(this.minHipY, rawComY);
+        this.maxHipY = Math.max(this.maxHipY, rawComY);
     }
 
     if (this.lastFrameTime > 0) {
         const posture = this._calculatePostureIntegrity() ?? 0;
-        const isStableInIdle = this.userState === 'IDLE'; 
-        if (isStableInIdle && posture > 80) {
+        if (this.userState === 'IDLE' && posture > 80) {
             this.readyStanceTimeMs += timestamp - this.lastFrameTime;
         }
     }
@@ -321,16 +358,27 @@ export class BjjAnalyticsEngine {
   }
 
   private _calculateBalanceStability(): number | null {
-    if (this.frameHistory.length < 15) return null;
-    const recentComs = this.frameHistory.slice(0, 15).map(f => f.com).filter((c): c is Vector3 => !!c);
-    if (recentComs.length < 15) return null;
+    const lm = this.frameHistory[0]?.landmarks;
+    if (!lm || !this.bodyScale || !this.frameHistory[0]?.com) return null;
+    
+    const lAnk = lm[LANDMARK_INDICES.LEFT_ANKLE];
+    const rAnk = lm[LANDMARK_INDICES.RIGHT_ANKLE];
+    
+    // Use raw landmark coords for base of support, not smoothed CoM
+    const midFeetX = (lAnk.x + rAnk.x) / 2;
+    const baseWidth = Math.abs(lAnk.x - rAnk.x);
 
-    const xCoords = recentComs.map(c => c.x);
-    const zCoords = recentComs.map(c => c.z);
-    const sway = (this._stdDev(xCoords) + this._stdDev(zCoords)) * this.config.balanceSwayFactor;
-    return Math.max(0, 100 - sway);
+    // Use smoothed CoM for stability check
+    const comX = this.frameHistory[0].com!.x;
+    
+    const offset = Math.abs(comX - midFeetX);
+    
+    // Score is based on how far the CoM is from the center of the base, as a percentage of the base width.
+    // Being within half the base width is considered stable.
+    const score = 100 * (1 - Math.min(1, offset / (baseWidth * 0.5 + 1e-4)));
+    return Math.max(0, Math.min(100, score));
   }
-
+  
   private _calculatePostureIntegrity(): number | null {
     const landmarks = this.frameHistory[0].landmarks;
     const { LEFT_HIP, RIGHT_HIP, LEFT_SHOULDER, RIGHT_SHOULDER, NOSE } = LANDMARK_INDICES;
@@ -348,7 +396,7 @@ export class BjjAnalyticsEngine {
 
   private _calculateExplosiveness(): number | null {
     if (this.framesSinceMoveStart === null) {
-      return this.userState === 'IDLE' ? null : Math.min(100, (this.lastExplosivePower / 25.0) * 100);
+        return this.userState === 'IDLE' ? null : this.lastExplosivePower;
     }
 
     if (this.framesSinceMoveStart < this.config.explosivenessWindow) {
@@ -360,14 +408,15 @@ export class BjjAnalyticsEngine {
         this.framesSinceMoveStart++;
     }
 
-    const maxReasonableAccel = 25.0;
+    const maxReasonableAccel = 60.0; // Normalized: 25 m/s^2 / ~0.4m body scale
     return Math.min(100, (this.lastExplosivePower / maxReasonableAccel) * 100);
   }
 
   private _calculateHipFlexibility(): number | null {
-      if (this.minHipY === Infinity) return null;
+      if (this.minHipY === Infinity || !this.bodyScale) return null;
       const range = this.maxHipY - this.minHipY;
-      const maxReasonableRange = 0.5;
+      // Normalize range by body scale. A range of 1 body scale is considered max flexibility.
+      const maxReasonableRange = this.bodyScale; 
       return Math.min(100, (range / maxReasonableRange) * 100);
   }
 
@@ -377,8 +426,7 @@ export class BjjAnalyticsEngine {
       if (mean === 0) return 100;
       const stdDev = this._stdDev(this.reactionTimeHistory);
       const coefficientOfVariation = stdDev / mean;
-      const score = Math.max(0, 100 - (coefficientOfVariation * 200));
-      return score;
+      return Math.max(0, 100 - (coefficientOfVariation * 200));
   }
 
   private _calculateMoveSuccess(balance: number | null, posture: number | null, flow: number | null): number | null {
@@ -391,14 +439,11 @@ export class BjjAnalyticsEngine {
   private _calculateConsistency(): number | null {
     if (this.userState !== 'MOVING' || this.flowHistory.length < 20) return null;
     const stdDev = this._stdDev(this.flowHistory);
-    // stdDev of flow scores. A low std dev is good. Let's say a std dev of 20 is bad.
-    const score = 100 - (stdDev * 4); // A std dev of 25 results in a score of 0
-    return Math.max(0, Math.min(100, score));
+    return Math.max(0, Math.min(100, 100 - (stdDev * 4)));
   }
 
   private _calculateMoveAccuracy(): number | null {
     if (!this.lastSignature) return null;
-
     const currentPath = this.currentMovePath;
     if (currentPath.length < this.config.moveSignaturePathLength) return null;
 
@@ -408,7 +453,6 @@ export class BjjAnalyticsEngine {
       `${Math.round(p.x * 10)},${Math.round(p.y * 10)},${Math.round(p.z * 10)}`
     ).join(';');
     
-    // Levenshtein distance is a good measure for string similarity
     const distance = this._levenshteinDistance(currentSignature, this.lastSignature);
     const maxPossibleDistance = Math.max(currentSignature.length, this.lastSignature.length);
     if (maxPossibleDistance === 0) return 100;
@@ -425,7 +469,6 @@ export class BjjAnalyticsEngine {
 
     const firstPoint = this.currentMovePath[0];
     const normalizedPath = this.currentMovePath.map(p => this._subtract(p, firstPoint));
-    
     const signature = normalizedPath.map(p => 
       `${Math.round(p.x * 10)},${Math.round(p.y * 10)},${Math.round(p.z * 10)}`
     ).join(';');
@@ -436,6 +479,11 @@ export class BjjAnalyticsEngine {
   }
 
   // --- Vector and Math Helpers ---
+  private _ema(prev: number | undefined, curr: number, a=0.3){ return prev===undefined ? curr : a*curr + (1-a)*prev; }
+  private _emaV(prev: Vector3 | undefined, curr: Vector3, a=0.3): Vector3 {
+    if (!prev) return curr;
+    return { x: this._ema(prev.x, curr.x, a), y: this._ema(prev.y, curr.y, a), z: this._ema(prev.z, curr.z, a) };
+  }
   private _vectorMagnitude = (v: Vector3): number => Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
   private _add = (v1: Vector3, v2: Vector3): Vector3 => ({ x: v1.x + v2.x, y: v1.y + v2.y, z: v1.z + v2.z });
   private _subtract = (v1: Vector3, v2: Vector3): Vector3 => ({ x: v1.x - v2.x, y: v1.y - v2.y, z: v1.z - v2.z });

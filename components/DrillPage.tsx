@@ -124,12 +124,15 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   const [feedbackLog, setFeedbackLog] = useState<Set<string>>(new Set());
   const [isImmersiveKpiPanelVisible, setIsImmersiveKpiPanelVisible] = useState(false);
   const [isMobileKpiPanelOpen, setIsMobileKpiPanelOpen] = useState(false);
+  const [fps, setFps] = useState<number>(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number | null>(null);
   const lastAnalysisTime = useRef<number>(0);
   const analyticsEngine = useRef<BjjAnalyticsEngine | null>(null);
+  const frameCount = useRef(0);
+  const lastFpsUpdate = useRef(performance.now());
   
   const isSessionActive = sessionState === 'running';
 
@@ -286,6 +289,15 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   }, [settings.modelComplexity]);
 
   const predict = useCallback(() => {
+    const now = performance.now();
+    frameCount.current++;
+    if (now - lastFpsUpdate.current > 1000) {
+      const currentFps = frameCount.current * 1000 / (now - lastFpsUpdate.current);
+      setFps(currentFps);
+      frameCount.current = 0;
+      lastFpsUpdate.current = now;
+    }
+
     if (!videoRef.current || !canvasRef.current || !poseLandmarker || !sessionStartTime) return;
     const video = videoRef.current;
     if (video.readyState < 2) return;
@@ -628,6 +640,13 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
       <div className="relative w-full flex-1 overflow-hidden lg:rounded-2xl">
         <LoadingOverlay isLoading={isLoading} error={error} onGoBack={() => onNavigate('home')} />
         <LiveView videoRef={videoRef} canvasRef={canvasRef} isUserFacing={isUserFacing} />
+        {/* --- ADD THIS FPS COUNTER --- */}
+        {sessionState !== 'idle' && (
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-lg font-bold p-2 rounded-lg pointer-events-none">
+            FPS: {fps.toFixed(1)}
+          </div>
+        )}
+        {/* ----------------------------- */}
         {availableDrills.length === 0 && !isLoading && !error && <NoDrillsSelected onNavigate={onNavigate} />}
 
 
