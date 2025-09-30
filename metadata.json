@@ -1,6 +1,6 @@
 {
-  "name": "BJJ AI Coach",
-  "description": "An AI-powered Jiu-Jitsu training assistant that uses live pose detection to provide real-time KPIs and feedback on your stance and posture.",
+  "name": "Rollmetric",
+  "description": "An AI-powered brazalian Jiu-Jitsu training assistant that uses live pose detection to provide real-time KPIs and feedback on your stance and posture.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -13,14 +13,13 @@ const defaultSettings: AppSettings = {
   skeletonThickness: 5, // Normal
   drillLayout: 'immersive',
   focusArea: ['side-control', 'mount'], // Default focus area
-  enableAudioFeedback: true,
 };
 
 const settingsStorageKey = 'bjjAiCoachSettings';
+const sessionHistoryStorageKey = 'bjjAiCoachSessionHistory';
 
 export default function App() {
   const [page, setPage] = useState<Page>('home');
-  const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
   const [isDrillSessionActive, setIsDrillSessionActive] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
@@ -38,6 +37,36 @@ export default function App() {
     }
     return defaultSettings;
   });
+
+  // Initialize session history from localStorage or fall back to an empty array
+  const [sessionHistory, setSessionHistory] = useState<Session[]>(() => {
+    try {
+      const savedHistory = localStorage.getItem(sessionHistoryStorageKey);
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory) as Session[];
+        // Re-hydrate Date objects after parsing from JSON
+        return parsedHistory.map(session => ({
+          ...session,
+          startTime: new Date(session.startTime),
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to load session history from localStorage:", error);
+    }
+    return [];
+  });
+
+  // Effect to save session history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      // We check sessionHistory length to avoid writing an empty array on first load if nothing was there
+      if (sessionHistory.length >= 0) { 
+        localStorage.setItem(sessionHistoryStorageKey, JSON.stringify(sessionHistory));
+      }
+    } catch (error) {
+      console.error("Failed to save session history to localStorage:", error);
+    }
+  }, [sessionHistory]);
 
   const handleNavigate = (newPage: Page) => {
     setPage(newPage);

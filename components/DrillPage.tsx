@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useContext } from 'react';
 import { PoseLandmarker, DrawingUtils, FilesetResolver, Landmark } from '@mediapipe/tasks-vision';
-import { Session, Page, Drill, SessionState, KpiType, SettingsContext } from '../types';
+import { Session, Page, Drill, SessionState, AdvancedKpiType, SettingsContext } from '../types';
 import KpiPanel from './KpiPanel';
 import { getPoseFeedback } from '../services/geminiService';
 import LoadingOverlay from './LoadingOverlay';
 import LiveView from './LiveView';
 import FeedbackPanel from './FeedbackPanel';
 import { ALL_DRILLS, DRILL_CATEGORIES } from '../DrillData';
+import { BjjAnalyticsEngine, EngineUpdateResult } from '../services/BjjAnalyticsEngine';
 
 interface DrillPageProps {
   onSessionEnd: (sessionData: Session) => void;
@@ -17,6 +18,23 @@ interface DrillPageProps {
 type SessionTitleDisplayConfig = { type: 'title'; value: string; };
 type SessionDropdownDisplayConfig = { type: 'dropdown'; label: string; items: string[]; };
 type SessionDisplayConfig = SessionTitleDisplayConfig | SessionDropdownDisplayConfig;
+
+const initialKpis: AdvancedKpiType = {
+  reactionTime: null,
+  moveSuccess: null,
+  fastScrambles: null,
+  intensityEndurance: null,
+  consistency: null,
+  moveVariety: null,
+  balanceStability: null,
+  postureIntegrity: null,
+  explosiveness: null,
+  flowRhythm: null,
+  reactionSteadiness: null,
+  readyStanceTime: null,
+  hipFlexibility: null,
+  moveAccuracy: null,
+};
 
 
 const LayoutToggleButton = ({ layout, onClick }: { layout: string, onClick: () => void }) => (
@@ -53,17 +71,6 @@ const ImmersivePanelToggleButton = ({ isOpen, onClick, disabled }: { isOpen: boo
   </button>
 );
 
-
-// Helper function to calculate the angle between three 2D points
-const calculateAngle = (a: Landmark, b: Landmark, c: Landmark) => {
-  const angle = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-  let degrees = angle * (180 / Math.PI);
-  degrees = Math.abs(degrees);
-  if (degrees > 180) {
-    degrees = 360 - degrees;
-  }
-  return degrees;
-};
 
 const NoDrillsSelected = ({ onNavigate, isDashboard = false }: { onNavigate: (page: Page) => void, isDashboard?: boolean }) => {
   if (isDashboard) {
@@ -108,23 +115,28 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [feedback, setFeedback] = useState('Start the session to get feedback.');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [kpis, setKpis] = useState<KpiType>({ postureHeight: null, baseWidth: null, hipHeight: null, spineAngle: null, kneeToElbow: null });
+  const [kpis, setKpis] = useState<AdvancedKpiType>(initialKpis);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [currentDrill, setCurrentDrill] = useState<Drill | 'all'>(settings.focusArea[0] || 'side-control');
   
-  const [kpiHistory, setKpiHistory] = useState<KpiType[]>([]);
+  const [kpiHistory, setKpiHistory] = useState<AdvancedKpiType[]>([]);
   const [feedbackLog, setFeedbackLog] = useState<Set<string>>(new Set());
   const [isImmersiveKpiPanelVisible, setIsImmersiveKpiPanelVisible] = useState(false);
   const [isMobileKpiPanelOpen, setIsMobileKpiPanelOpen] = useState(false);
-
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number | null>(null);
   const lastAnalysisTime = useRef<number>(0);
+  const analyticsEngine = useRef<BjjAnalyticsEngine | null>(null);
   
   const isSessionActive = sessionState === 'running';
+
+  // Initialize the analytics engine once.
+  useEffect(() => {
+    analyticsEngine.current = new BjjAnalyticsEngine({});
+  }, []);
 
   // Report session state changes to the parent component.
   useEffect(() => {
@@ -245,11 +257,15 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
         const modelName = `pose_landmarker_${settings.modelComplexity}`;
         const modelPath = `https://storage.googleapis.com/mediapipe-models/pose_landmarker/${modelName}/float16/1/${modelName}.task`;
-        const landmarker = await PoseLandmarker.createFromOptions(vision, {
+        // Fix: Use an 'any' type for PoseLandmarkerOptions to include 'outputWorldLandmarks'.
+        // This property is required for 3D analysis but may be missing from older type definitions.
+        const landmarkerOptions: any = {
           baseOptions: { modelAssetPath: modelPath, delegate: 'GPU' },
           runningMode: 'VIDEO',
+          outputWorldLandmarks: true, // Enable world landmarks for the engine
           numPoses: 1, minPoseDetectionConfidence: 0.5, minTrackingConfidence: 0.5,
-        });
+        };
+        const landmarker = await PoseLandmarker.createFromOptions(vision, landmarkerOptions);
         setPoseLandmarker(landmarker);
       } catch (e) {
         console.error("Initialization Error:", e);
@@ -270,7 +286,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   }, [settings.modelComplexity]);
 
   const predict = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || !poseLandmarker) return;
+    if (!videoRef.current || !canvasRef.current || !poseLandmarker || !sessionStartTime) return;
     const video = videoRef.current;
     if (video.readyState < 2) return;
     const canvas = canvasRef.current;
@@ -283,64 +299,48 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
       const results = poseLandmarker.detectForVideo(video, startTimeMs);
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      
       if (results.landmarks && results.landmarks.length > 0) {
-        const landmarks = results.landmarks[0];
+        const screenLandmarks = results.landmarks[0];
+        const worldLandmarks = results.worldLandmarks?.[0];
+
         if (settings.showSkeleton) {
             const drawingUtils = new DrawingUtils(canvasCtx);
             const { skeletonColor, skeletonThickness } = settings;
             const lineWidth = skeletonThickness;
             const landmarkRadius = skeletonThickness / 2;
-            drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, { color: skeletonColor, lineWidth });
-            drawingUtils.drawLandmarks(landmarks, { color: skeletonColor, radius: landmarkRadius });
+            drawingUtils.drawConnectors(screenLandmarks, PoseLandmarker.POSE_CONNECTIONS, { color: skeletonColor, lineWidth });
+            drawingUtils.drawLandmarks(screenLandmarks, { color: skeletonColor, radius: landmarkRadius });
         }
-        const requiredLandmarks = [11, 12, 13, 14, 23, 24, 25, 26].every(i => landmarks[i] && landmarks[i].visibility && landmarks[i].visibility > 0.5);
-        let newKpis: KpiType = { postureHeight: null, baseWidth: null, hipHeight: null, spineAngle: null, kneeToElbow: null };
-        if (requiredLandmarks) {
-          const midShoulder = { x: (landmarks[11].x + landmarks[12].x) / 2, y: (landmarks[11].y + landmarks[12].y) / 2 };
-          const midHip = { x: (landmarks[23].x + landmarks[24].x) / 2, y: (landmarks[23].y + landmarks[24].y) / 2 };
-          const midKnee = { x: (landmarks[25].x + landmarks[26].x) / 2, y: (landmarks[25].y + landmarks[26].y) / 2 };
-          const leftKneeToElbow = Math.hypot(landmarks[13].x - landmarks[25].x, landmarks[13].y - landmarks[25].y) * 100;
-          const rightKneeToElbow = Math.hypot(landmarks[14].x - landmarks[26].x, landmarks[14].y - landmarks[26].y) * 100;
-
-          newKpis = {
-            postureHeight: Math.abs(midShoulder.y - midHip.y) * 100,
-            baseWidth: Math.abs(landmarks[25].x - landmarks[26].x) * 100,
-            hipHeight: midHip.y * 100,
-            spineAngle: calculateAngle(midShoulder as Landmark, midHip as Landmark, midKnee as Landmark),
-            kneeToElbow: (leftKneeToElbow + rightKneeToElbow) / 2
-          };
-
-          setKpis(newKpis);
-          setKpiHistory(prev => [...prev, newKpis]);
-          
-          const now = performance.now();
-          if (now - lastAnalysisTime.current > 3000 && !isAnalyzing) {
-            setIsAnalyzing(true);
-            lastAnalysisTime.current = now;
-            getPoseFeedback(landmarks, currentDrill, settings.focusArea).then(newFeedback => {
-              if (newFeedback) {
-                  setFeedback(newFeedback);
-                  setFeedbackLog(prev => new Set(prev).add(newFeedback));
-                  
-                  if (settings.enableAudioFeedback) {
-                    const utterance = new SpeechSynthesisUtterance(newFeedback);
-                    speechSynthesis.cancel(); // Stop any previous speech
-                    speechSynthesis.speak(utterance);
-                  }
-
-                  const lowerCaseFeedback = newFeedback.toLowerCase();
-                  const isPositiveFeedback = ['excellent', 'awesome', 'solid', 'consistent', 'great'].some(w => lowerCaseFeedback.includes(w));
-                  if (!isPositiveFeedback) triggerHapticFeedback([50, 30, 50]);
-              }
-              setIsAnalyzing(false);
-            });
+        
+        if (analyticsEngine.current && sessionStartTime) {
+          const results: EngineUpdateResult = analyticsEngine.current.update(worldLandmarks, performance.now(), sessionStartTime.getTime());
+          setKpis(results.kpis);
+          setKpiHistory(prev => [...prev, results.kpis]);
+          if (results.reactionTime) {
+              // TODO: Display reaction time as a temporary toast/message
+              console.log(`Reaction Time: ${results.reactionTime.toFixed(0)}ms`);
           }
-        } else {
-          setKpis(newKpis);
-          setFeedback("Please make your full body visible.");
+        }
+        
+        const now = performance.now();
+        if (now - lastAnalysisTime.current > 3000 && !isAnalyzing) {
+          setIsAnalyzing(true);
+          lastAnalysisTime.current = now;
+          getPoseFeedback(screenLandmarks, currentDrill, settings.focusArea).then(newFeedback => {
+            if (newFeedback) {
+                setFeedback(newFeedback);
+                setFeedbackLog(prev => new Set(prev).add(newFeedback));
+
+                const lowerCaseFeedback = newFeedback.toLowerCase();
+                const isPositiveFeedback = ['excellent', 'awesome', 'solid', 'consistent', 'great'].some(w => lowerCaseFeedback.includes(w));
+                if (!isPositiveFeedback) triggerHapticFeedback([50, 30, 50]);
+            }
+            setIsAnalyzing(false);
+          });
         }
       } else {
-         setKpis({ postureHeight: null, baseWidth: null, hipHeight: null, spineAngle: null, kneeToElbow: null });
+         setKpis(initialKpis);
          setFeedback("No pose detected.");
       }
       canvasCtx.restore();
@@ -349,7 +349,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
       setError("An error occurred during pose detection.");
       setSessionState('paused');
     }
-  }, [poseLandmarker, isAnalyzing, settings, currentDrill]);
+  }, [poseLandmarker, isAnalyzing, settings, currentDrill, sessionStartTime]);
 
   useEffect(() => {
     const loop = () => {
@@ -406,13 +406,14 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
     triggerHapticFeedback(50);
     if (sessionState === 'running') {
       setSessionState('paused');
-      setKpis({ postureHeight: null, baseWidth: null, hipHeight: null, spineAngle: null, kneeToElbow: null });
+      setKpis(initialKpis);
       setFeedback("Session paused.");
     } else { // 'idle' or 'paused'
       if (sessionState === 'idle') {
         setSessionStartTime(new Date());
         setKpiHistory([]);
         setFeedbackLog(new Set());
+        analyticsEngine.current?.reset();
       }
       setSessionState('running');
       setFeedback("AI coach is warming up...");
@@ -422,25 +423,40 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
   const handleEndSession = () => {
     triggerHapticFeedback(100);
     if (sessionStartTime) {
-      const calculateAverages = (history: KpiType[]): KpiType => {
+      const calculateAverages = (history: AdvancedKpiType[]): AdvancedKpiType => {
+        if (history.length === 0) return initialKpis;
         const sums = history.reduce((acc, kpi) => {
-          return {
-            postureHeight: acc.postureHeight + (kpi.postureHeight || 0),
-            baseWidth: acc.baseWidth + (kpi.baseWidth || 0),
-            hipHeight: acc.hipHeight + (kpi.hipHeight || 0),
-            spineAngle: acc.spineAngle + (kpi.spineAngle || 0),
-            kneeToElbow: acc.kneeToElbow + (kpi.kneeToElbow || 0),
-          };
-        }, { postureHeight: 0, baseWidth: 0, hipHeight: 0, spineAngle: 0, kneeToElbow: 0 });
+          (Object.keys(kpi) as Array<keyof AdvancedKpiType>).forEach(key => {
+              const value = kpi[key];
+              if (value !== null) {
+                  acc[key] = (acc[key] || 0) + value;
+              }
+          });
+          return acc;
+        }, {} as { [key in keyof AdvancedKpiType]: number });
 
-        const count = history.length || 1;
-        return {
-          postureHeight: sums.postureHeight / count,
-          baseWidth: sums.baseWidth / count,
-          hipHeight: sums.hipHeight / count,
-          spineAngle: sums.spineAngle / count,
-          kneeToElbow: sums.kneeToElbow / count,
-        };
+        const counts = history.reduce((acc, kpi) => {
+          (Object.keys(kpi) as Array<keyof AdvancedKpiType>).forEach(key => {
+              if (kpi[key] !== null) {
+                  acc[key] = (acc[key] || 0) + 1;
+              }
+          });
+          return acc;
+        }, {} as { [key in keyof AdvancedKpiType]: number });
+
+
+        const averages = { ...initialKpis };
+        (Object.keys(sums) as Array<keyof AdvancedKpiType>).forEach(key => {
+            if (counts[key] > 0) {
+              // For cumulative KPIs like scrambles and variety, take the max value, not the average
+              if (key === 'fastScrambles' || key === 'moveVariety') {
+                averages[key] = Math.max(...history.map(h => h[key] || 0));
+              } else {
+                averages[key] = sums[key] / counts[key];
+              }
+            }
+        });
+        return averages;
       };
 
       onSessionEnd({
@@ -451,12 +467,21 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
         feedbackLog: Array.from(feedbackLog),
       });
     }
+    analyticsEngine.current?.reset();
     setSessionState('idle');
     setSessionStartTime(null);
-    setKpis({ postureHeight: null, baseWidth: null, hipHeight: null, spineAngle: null, kneeToElbow: null });
+    setKpis(initialKpis);
     setFeedback('Start the session to get feedback.');
     setKpiHistory([]);
     setFeedbackLog(new Set());
+
+    // Fix: Explicitly clear the canvas to remove the frozen skeleton.
+    if (canvasRef.current) {
+      const canvasCtx = canvasRef.current.getContext('2d');
+      if (canvasCtx) {
+        canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
   };
   
   const isUserFacing = useMemo(() => {
@@ -476,6 +501,20 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
     if (sessionState === 'paused') return 'Resume';
     return 'Start';
   }, [sessionState]);
+
+  const GearIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+
+  const DesktopConfigureButton = ({ onClick }: { onClick: () => void }) => (
+      <button onClick={onClick} className="flex-1 bg-[#2d2d2d] text-gray-300 hover:text-[#F0F6FC] py-3 px-4 rounded-lg font-semibold text-base hover:bg-[#3f3f3f] transition-colors flex items-center justify-center gap-2" title="Configure Settings">
+          <GearIcon />
+          <span className="truncate">Configure</span>
+      </button>
+  );
 
   const ImmersiveControlGroup = () => (
     <div className="flex items-center gap-4">
@@ -513,6 +552,7 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
         </div>
       </div>
       <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+      <DesktopConfigureButton onClick={() => onNavigate('account')} />
     </div>
   );
   
@@ -563,17 +603,20 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
               </div>
           </div>
       </div>
-      <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+      <div className="grid grid-cols-2 gap-4">
+        <LayoutToggleButton layout={settings.drillLayout} onClick={handleToggleLayout} />
+        <DesktopConfigureButton onClick={() => onNavigate('account')} />
+      </div>
     </div>
   );
 
   const MobileKpiSummary = () => (
     <div className="flex items-center justify-around w-full text-xs text-center">
-        <div className="flex flex-col"><span className="text-gray-400">P</span><span className="font-bold text-white">{kpis.postureHeight?.toFixed(0) || '--'}</span></div>
-        <div className="flex flex-col"><span className="text-gray-400">B</span><span className="font-bold text-white">{kpis.baseWidth?.toFixed(0) || '--'}</span></div>
-        <div className="flex flex-col"><span className="text-gray-400">H</span><span className="font-bold text-white">{kpis.hipHeight?.toFixed(0) || '--'}</span></div>
-        <div className="flex flex-col"><span className="text-gray-400">S</span><span className="font-bold text-white">{kpis.spineAngle?.toFixed(0) || '--'}</span></div>
-        <div className="flex flex-col"><span className="text-gray-400">K</span><span className="font-bold text-white">{kpis.kneeToElbow?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">POS</span><span className="font-bold text-white">{kpis.postureIntegrity?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">BAL</span><span className="font-bold text-white">{kpis.balanceStability?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">POW</span><span className="font-bold text-white">{kpis.explosiveness?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">FLO</span><span className="font-bold text-white">{kpis.flowRhythm?.toFixed(0) || '--'}</span></div>
+        <div className="flex flex-col"><span className="text-gray-400">INT</span><span className="font-bold text-white">{kpis.intensityEndurance?.toFixed(0) || '--'}</span></div>
     </div>
   );
 
@@ -591,39 +634,38 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
         {/* --- Immersive Mode Desktop UI --- */}
         {!isLoading && !error && settings.drillLayout === 'immersive' && (
           <div className="hidden lg:flex absolute bottom-8 left-1/2 -translate-x-1/2 w-auto z-20">
-            <div className="flex items-stretch">
-              <div className="relative">
-                  {/* Main Control Panel */}
-                  <div className="flex-shrink-0 bg-[#1c1c1c]/80 backdrop-blur-md rounded-2xl shadow-2xl p-6 flex flex-col gap-4 w-[720px]">
-                     <div className="flex items-center justify-between gap-6">
-                         <div>
-                             <p className="text-gray-400 text-base">You're in</p>
-                             <div className="mt-1">
-                                 <SessionTitleDisplay displayConfig={sessionDisplay} />
-                             </div>
-                         </div>
-                         <div className="flex flex-col gap-4">
-                             <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors w-40 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
-                             <button onClick={handleEndSession} className="bg-transparent text-gray-400 hover:bg-red-600/20 hover:text-red-400 py-4 px-8 text-xl rounded-lg font-bold transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400" disabled={sessionState === 'idle'}>End Session</button>
-                         </div>
+            {/* The main container for the entire control unit. Using absolute positioning for the KPI panel now. */}
+            <div className="relative">
+              {/* Main Control Panel - it now dictates the height */}
+              <div className={`flex-shrink-0 bg-[#1c1c1c]/80 backdrop-blur-md shadow-2xl p-6 flex flex-col gap-4 w-[720px] transition-all duration-300 ${isImmersiveKpiPanelVisible ? 'rounded-l-2xl' : 'rounded-2xl'}`}>
+                  <div className="flex items-center justify-between gap-6">
+                      <div>
+                          <p className="text-gray-400 text-base">You're in</p>
+                          <div className="mt-1">
+                              <SessionTitleDisplay displayConfig={sessionDisplay} />
+                          </div>
                       </div>
-                      <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
-                      <ImmersiveControlGroup />
+                      <div className="flex flex-col gap-4">
+                          <button onClick={handleToggleSession} className="bg-[#58A6FF] text-black py-4 px-8 text-xl rounded-lg font-bold hover:bg-blue-500 transition-colors w-40 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={availableDrills.length === 0}>{sessionButtonText}</button>
+                          <button onClick={handleEndSession} className="bg-transparent text-gray-400 hover:bg-red-600/20 hover:text-red-400 py-4 px-8 text-xl rounded-lg font-bold transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400" disabled={sessionState === 'idle'}>End Session</button>
+                      </div>
                   </div>
-                   <ImmersivePanelToggleButton 
-                        isOpen={isImmersiveKpiPanelVisible} 
-                        onClick={() => setIsImmersiveKpiPanelVisible(!isImmersiveKpiPanelVisible)}
-                        disabled={sessionState === 'idle'}
-                     />
+                  <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
+                  <ImmersiveControlGroup />
               </div>
-              
-              {/* Conditionally Visible KPI Panel */}
+
+              {/* The Toggle button is positioned relative to the container above */}
+              <ImmersivePanelToggleButton 
+                  isOpen={isImmersiveKpiPanelVisible} 
+                  onClick={() => setIsImmersiveKpiPanelVisible(!isImmersiveKpiPanelVisible)}
+                  disabled={sessionState === 'idle'}
+              />
+
+              {/* KPI Panel - Positioned absolutely to the main container */}
               {sessionState !== 'idle' && (
-                  <div className={`flex-shrink-0 bg-[#1c1c1c]/80 backdrop-blur-md rounded-r-2xl shadow-2xl border-l border-gray-700/50 p-4 transition-all duration-300 ${isImmersiveKpiPanelVisible ? 'w-48 opacity-100' : 'w-0 opacity-0'}`}>
-                      <div className="w-full h-full">
-                          <KpiPanel kpis={kpis} layout="vertical" />
-                      </div>
-                  </div>
+                <div className={`absolute top-0 left-full h-full bg-[#1c1c1c]/80 backdrop-blur-md rounded-r-2xl shadow-2xl border-l border-gray-700/50 p-4 transition-all duration-300 overflow-y-auto ${isImmersiveKpiPanelVisible ? 'w-80' : 'w-0 opacity-0'}`}>
+                  <KpiPanel kpis={kpis} />
+                </div>
               )}
             </div>
           </div>
@@ -643,7 +685,9 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
               </div>
               <FeedbackPanel feedback={feedback} isAnalyzing={isAnalyzing} isSessionActive={isSessionActive} />
               
-              <KpiPanel kpis={kpis} layout="horizontal" />
+              <div className="flex-grow min-h-0 overflow-y-auto">
+                <KpiPanel kpis={kpis} />
+              </div>
 
               <DashboardControlGroup />
 
@@ -696,9 +740,9 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isMobileKpiPanelOpen ? 'max-h-96 mt-2' : 'max-h-0'}`}>
-                      <div className="bg-[#2d2d2d]/80 backdrop-blur-sm rounded-lg p-2">
-                        <KpiPanel kpis={kpis} layout="vertical" />
+                    <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isMobileKpiPanelOpen ? 'max-h-[50vh] mt-2' : 'max-h-0'}`}>
+                      <div className="bg-[#2d2d2d]/80 backdrop-blur-sm rounded-lg p-2 max-h-[50vh] overflow-y-auto">
+                        <KpiPanel kpis={kpis} />
                       </div>
                     </div>
                   </div>
@@ -746,6 +790,16 @@ export default function DrillPage({ onSessionEnd, onNavigate, onSessionStateChan
                            </svg>
                        </div>
                    </div>
+                   <button 
+                      onClick={() => onNavigate('account')}
+                      className="flex-shrink-0 bg-[#2d2d2d]/80 backdrop-blur-sm text-gray-200 p-3.5 rounded-lg hover:bg-[#3f3f3f] transition-colors active:scale-95"
+                      title="Configure Settings"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
                 </div>
 
                 {/* MAIN ACTION BUTTONS */}

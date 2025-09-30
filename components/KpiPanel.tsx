@@ -1,63 +1,52 @@
 import React from 'react';
+import { AdvancedKpiType } from '../types';
 
 interface KpiPanelProps {
-  kpis: {
-    postureHeight: number | null;
-    baseWidth: number | null;
-    hipHeight: number | null;
-    spineAngle: number | null;
-    kneeToElbow: number | null;
-  };
-  layout?: 'horizontal' | 'vertical';
+  kpis: AdvancedKpiType;
+  // The layout prop is no longer needed as we've unified the design.
+  // layout?: 'horizontal' | 'vertical';
 }
 
-const KpiCard = ({ label, value, unit = '', isCompact = false, dynamicFontSizeClass = 'text-xs' }: { label: string, value: number | null, unit?: string, isCompact?: boolean, dynamicFontSizeClass?: string }) => {
+const KpiCard = ({ label, value, unit = '' }: { label: string, value: number | null, unit?: string }) => {
     const displayValue = value !== null ? Math.round(value) : '--';
-
-    const containerClasses = isCompact 
-      ? "p-2 text-center flex-1" // Boxless design for vertical/immersive
-      : "bg-transparent p-1 rounded-lg text-center flex-1 lg:p-4"; // Consistent boxless design for horizontal/dashboard
-
-    const labelClasses = isCompact
-      ? `text-gray-300 font-medium whitespace-nowrap ${dynamicFontSizeClass}`
-      : "text-gray-300 text-sm font-medium";
-    
-    const valueClasses = isCompact
-      ? "text-white text-lg font-bold"
-      : "text-white text-xl font-bold sm:text-3xl";
+    const hasValue = value !== null;
 
     return (
-        <div className={containerClasses}>
-            <p className={labelClasses}>{label}</p>
-            <p className={valueClasses}>
-                {displayValue}{unit && displayValue !== '--' ? unit : ''}
+        <div className="bg-gray-800/40 p-3 rounded-lg text-center flex-shrink-0">
+            <p className="text-gray-300 text-xs font-medium whitespace-nowrap">{label}</p>
+            <p className="text-white text-lg font-bold">
+                {displayValue}
+                {unit && hasValue ? <span className="text-sm font-normal text-gray-400 ml-1">{unit}</span> : ''}
             </p>
         </div>
     );
 };
 
-
-export default function KpiPanel({ kpis, layout = 'horizontal' }: KpiPanelProps) {
-  const isVerticalCompact = layout === 'vertical';
-  const numKpis = Object.keys(kpis).length;
-
-  // Dynamically adjust font size for compact vertical layout
-  const dynamicFontSizeClass = numKpis > 4 ? 'text-[11px]' : 'text-xs';
-
-  const containerClasses = layout === 'horizontal' 
-    ? "grid grid-cols-5 gap-1 sm:gap-3"
-    : "grid grid-cols-2 gap-2";
-    
-  return (
-    <div className="p-1 lg:p-0 lg:mt-0 h-full">
-        <h3 className="hidden lg:block text-gray-400 font-semibold mb-2 px-1 text-base">Live KPIs</h3>
-        <div className={`${containerClasses} h-full`}>
-            <KpiCard label="Posture H" value={kpis.postureHeight} isCompact={isVerticalCompact} dynamicFontSizeClass={dynamicFontSizeClass} />
-            <KpiCard label="Base W" value={kpis.baseWidth} isCompact={isVerticalCompact} dynamicFontSizeClass={dynamicFontSizeClass} />
-            <KpiCard label="Hip H" value={kpis.hipHeight} isCompact={isVerticalCompact} dynamicFontSizeClass={dynamicFontSizeClass} />
-            <KpiCard label="Spine Angle" value={kpis.spineAngle} unit="°" isCompact={isVerticalCompact} dynamicFontSizeClass={dynamicFontSizeClass} />
-            <KpiCard label="Knee-Elbow" value={kpis.kneeToElbow} isCompact={isVerticalCompact} dynamicFontSizeClass={dynamicFontSizeClass} />
+// The component has been simplified to use one single, comprehensive layout.
+export default function KpiPanel({ kpis }: KpiPanelProps) {
+    return (
+        <div className="p-1 lg:p-0 h-full flex flex-col">
+            <h3 className="hidden lg:block text-gray-400 font-semibold mb-2 px-1 text-base flex-shrink-0">Advanced KPIs</h3>
+            {/* 
+              This is now the single source of truth for displaying KPIs. 
+              It's a scrollable, 2-column grid that shows all 14 metrics.
+            */}
+            <div className="flex-grow overflow-y-auto grid grid-cols-2 gap-2 pr-1">
+                <KpiCard label="Reaction Time" value={kpis.reactionTime} unit="ms" />
+                <KpiCard label="Move Success" value={kpis.moveSuccess} unit="%" />
+                <KpiCard label="Fast Scrambles" value={kpis.fastScrambles} unit="" />
+                <KpiCard label="Intensity" value={kpis.intensityEndurance} unit="%" />
+                <KpiCard label="Consistency" value={kpis.consistency} unit="%" />
+                <KpiCard label="Move Variety" value={kpis.moveVariety} unit="moves" />
+                <KpiCard label="Balance Stability" value={kpis.balanceStability} unit="%" />
+                <KpiCard label="Posture Integrity" value={kpis.postureIntegrity} unit="%" />
+                <KpiCard label="Explosive Power" value={kpis.explosiveness} unit="%" />
+                <KpiCard label="Smooth Flow" value={kpis.flowRhythm} unit="%" />
+                <KpiCard label="Reaction Stead." value={kpis.reactionSteadiness} unit="%" />
+                <KpiCard label="Ready Stance" value={kpis.readyStanceTime} unit="%" />
+                <KpiCard label="Hip Flexibility" value={kpis.hipFlexibility} unit="%" />
+                <KpiCard label="Move Accuracy" value={kpis.moveAccuracy} unit="%" />
+            </div>
         </div>
-    </div>
-  );
+    );
 }
