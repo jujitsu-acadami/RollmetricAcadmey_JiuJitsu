@@ -1,4 +1,3 @@
-// Fix: Import DrillCategory from the central types file and remove the local definition.
 import { Drill, DrillCategory } from './types';
 
 export interface DrillDefinition {
@@ -11,6 +10,14 @@ export const DRILL_CATEGORIES: DrillCategory[] = [
   'Attack Positions',
   'Defensive Situations',
   'Transitional & Neutral',
+];
+
+export const TRAINING_GOALS: string[] = [
+    'Improve Submissions',
+    'Escape Bad Positions',
+    'Sharpen Transitions',
+    'Build Positional Control',
+    'Prepare for Sparring or Competition'
 ];
 
 export const ALL_DRILLS: DrillDefinition[] = [

@@ -1,0 +1,17 @@
+export const metricInfo: Record<string, { title: string; tip: string }> = {
+    activeTime: { title: "Active Time %", tip: "The percentage of the session you were actively moving." },
+    readyStance: { title: "Ready Stance %", tip: "The percentage of your rest time spent in a good, ready stance." },
+    avgIntensity: { title: "Average Intensity", tip: "Your overall effort and intensity, averaged for the session (0-100)." },
+    peakIntensity: { title: "Peak Intensity", tip: "The most explosive, highest-intensity moment of your session." },
+    fatigueTrend: { title: "Fatigue Trend", tip: "Measures how your technique quality (e.g., posture) changed over time. A negative value indicates fatigue." },
+    postureQuality: { title: "Posture Quality", tip: "How well your spine and head were aligned. Higher is better." },
+    baseStability: { title: "Base Stability", tip: "How stable your center of mass was over your base of support. Higher is better." },
+    flowSmoothness: { title: "Flow Smoothness", tip: "How smooth your movements were. Less jerkiness equals a higher score." },
+    consistency: { title: "Consistency", tip: "How consistently you repeated the same movement patterns." },
+    scrambleCount: { title: "Scramble Count", tip: "The total number of high-acceleration, chaotic movements detected." },
+    stabilization: { title: "Stabilization Rate", tip: "The percentage of scrambles after which you quickly returned to a stable posture and base." },
+    moveVariety: { title: "Move Variety", tip: "The number of unique movement patterns you performed during the session." },
+    stableControl: { title: "Stable Control Time", tip: "The percentage of time spent holding a stable top-control posture (e.g., Mount, Side Control)." },
+    guardMobility: { title: "Guard Mobility Index", tip: "A measure of your hip mobility and range of motion during guard-related movements." },
+    guardActivity: { title: "Guard Activity Rate", tip: "The percentage of time spent holding a stable, active guard posture." },
+};

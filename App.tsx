@@ -7,12 +7,21 @@ import { Page, Session, AppSettings, SessionState } from './types';
 import { SettingsContext } from './types';
 
 const defaultSettings: AppSettings = {
-  modelComplexity: 'lite',
+  modelComplexity: 'full',
   showSkeleton: true,
-  skeletonColor: '#7FFF00', // Lime Green
-  skeletonThickness: 5, // Normal
+  skeletonColor: '#7FFF00',
+  skeletonThickness: 5,
   drillLayout: 'immersive',
-  focusArea: ['side-control', 'mount'], // Default focus area
+  focusArea: ['side-control', 'mount'],
+  skillLevel: 'Intermediate',
+  voiceCues: {
+    enabled: true,
+    type: 'Technical Guidance',
+    frequency: 'Smart Mode (context-aware, AI-driven)',
+    style: 'Neutral Instructor'
+  },
+  trainingGoals: {},
+  selfDefense: false,
 };
 
 const settingsStorageKey = 'bjjAiCoachSettings';
@@ -23,13 +32,11 @@ export default function App() {
   const [isDrillSessionActive, setIsDrillSessionActive] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
-  // Initialize settings from localStorage or fall back to defaults
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const savedSettings = localStorage.getItem(settingsStorageKey);
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
-        // Merge with defaults to handle cases where new settings are added
         return { ...defaultSettings, ...parsedSettings };
       }
     } catch (error) {
@@ -38,14 +45,13 @@ export default function App() {
     return defaultSettings;
   });
 
-  // Initialize session history from localStorage or fall back to an empty array
   const [sessionHistory, setSessionHistory] = useState<Session[]>(() => {
     try {
       const savedHistory = localStorage.getItem(sessionHistoryStorageKey);
       if (savedHistory) {
         const parsedHistory = JSON.parse(savedHistory) as Session[];
-        // Re-hydrate Date objects after parsing from JSON
-        return parsedHistory.map(session => ({
+        // Filter out any invalid/null entries before processing
+        return parsedHistory.filter(s => s && s.startTime).map(session => ({
           ...session,
           startTime: new Date(session.startTime),
         }));
@@ -56,13 +62,9 @@ export default function App() {
     return [];
   });
 
-  // Effect to save session history to localStorage whenever it changes
   useEffect(() => {
     try {
-      // We check sessionHistory length to avoid writing an empty array on first load if nothing was there
-      if (sessionHistory.length >= 0) { 
-        localStorage.setItem(sessionHistoryStorageKey, JSON.stringify(sessionHistory));
-      }
+      localStorage.setItem(sessionHistoryStorageKey, JSON.stringify(sessionHistory));
     } catch (error) {
       console.error("Failed to save session history to localStorage:", error);
     }
@@ -74,17 +76,14 @@ export default function App() {
 
   const handleSessionEnd = (sessionData: Session) => {
     setSessionHistory(prev => [...prev, sessionData]);
-    // Stay on the Drill page and show a confirmation toast
     setToastMessage("Session saved to your Account history!");
     setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleDrillSessionStateChange = (state: SessionState) => {
-    // The header should be hidden when the session is running or paused.
     setIsDrillSessionActive(state === 'running' || state === 'paused');
   };
 
-  // This function now saves settings to localStorage before updating the state
   const handleSettingsChange = (newSettings: AppSettings) => {
     try {
       localStorage.setItem(settingsStorageKey, JSON.stringify(newSettings));
@@ -107,7 +106,7 @@ export default function App() {
                   onSessionStateChange={handleDrillSessionStateChange}
                 />;
       case 'account':
-        return <AccountPage sessionHistory={sessionHistory} />;
+        return <AccountPage sessionHistory={sessionHistory} onNavigate={handleNavigate} />;
       default:
         return <HomePage onNavigate={handleNavigate} sessionHistory={sessionHistory} />;
     }
@@ -115,7 +114,7 @@ export default function App() {
   
   return (
     <SettingsContext.Provider value={settingsContextValue}>
-      <div className="min-h-screen bg-[#0D1117] text-[#F0F6FC] flex flex-col relative">
+      <div className="min-h-screen bg-dd-bg text-dd-text flex flex-col relative">
         <Header 
           onNavigate={handleNavigate} 
           currentPage={page} 
@@ -124,12 +123,11 @@ export default function App() {
         <main className={`flex flex-col ${
           page === 'drill' 
           ? 'absolute inset-0 lg:static lg:flex-grow' 
-          : 'flex-grow items-center p-4 sm:p-6 lg:p-8'
+          : 'flex-grow items-center p-3 sm:p-6 lg:p-8'
         }`}>
           {renderPage()}
         </main>
 
-        {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in-out">
             {toastMessage}
