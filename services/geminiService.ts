@@ -8,10 +8,14 @@ const AI_TEMPERATURE = 0.4;
 let ai: GoogleGenAI | null = null;
 
 function getAiInstance(): GoogleGenAI {
-  if (!ai) {
-    ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-  }
-  return ai;
+    if (!ai) {
+        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("Gemini API key is missing. Set GEMINI_API_KEY in your environment before starting the app.");
+        }
+        ai = new GoogleGenAI({ apiKey });
+    }
+    return ai;
 }
 
 // --- Utilities ---

@@ -4,9 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BJJ AI Coach</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500" rel="stylesheet"/>
-    <link rel="stylesheet" href="/src/app/main.css">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500" rel="stylesheet"/>
     <script>
       tailwind.config = {
         darkMode: "class",
@@ -37,23 +36,9 @@
       }
     </script>
 
-    <!-- Babel for in-browser TSX transpilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script type="importmap">
-      {
-        "imports": {
-          "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-          "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
-          "react/": "https://aistudiocdn.com/react@^19.1.1/",
-          "react": "https://aistudiocdn.com/react@^19.1.1",
-          "@mediapipe/tasks-vision": "https://aistudiocdn.com/@mediapipe/tasks-vision@^0.10.22-rc.20250304"
-        }
-      }
-    </script>
   </head>
   <body class="bg-dd-bg">
     <div id="root"></div>
-    <script type="text/babel" data-type="module" src="/src/app/index.tsx"></script>
+    <script type="module" src="/src/app/index.tsx"></script>
   </body>
 </html>
