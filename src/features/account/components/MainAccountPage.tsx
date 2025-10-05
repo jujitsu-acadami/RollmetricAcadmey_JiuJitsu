@@ -9,9 +9,10 @@ interface MainAccountPageProps {
     sessionHistory: Session[];
     onSetView: (view: AccountView) => void;
     onInfoClick: (metricKey: string) => void;
+    onLogout: () => void;
 }
 
-export default function MainAccountPage({ sessionHistory, onSetView, onInfoClick }: MainAccountPageProps) {
+export default function MainAccountPage({ sessionHistory, onSetView, onInfoClick, onLogout }: MainAccountPageProps) {
     return (
         <>
             <PageTitle title="Account" />
@@ -51,8 +52,16 @@ export default function MainAccountPage({ sessionHistory, onSetView, onInfoClick
                 <section>
                     <h3 className="text-lg sm:text-xl font-semibold text-dd-danger mb-3">Danger Zone</h3>
                     <div className="rounded-2xl overflow-hidden border border-red-600/30 divide-y divide-red-600/20 bg-dd-surface/40">
-                        <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-white/5 text-left text-red-400"><div className="flex items-center gap-3"><span className="material-symbols-outlined">logout</span><span className="font-medium">Log out</span></div><span className="material-symbols-outlined">chevron_right</span></button>
-                        <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-white/5 text-left text-red-400"><div className="flex items-center gap-3"><span className="material-symbols-outlined">delete</span><span className="font-medium">Delete Account</span></div><span className="material-symbols-outlined">chevron_right</span></button>
+                        <button 
+                            onClick={onLogout}
+                            className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-white/5 text-left text-red-400"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined">logout</span>
+                                <span className="font-medium">Sign Out</span>
+                            </div>
+                            <span className="material-symbols-outlined">chevron_right</span>
+                        </button>
                     </div>
                 </section>
             </section>

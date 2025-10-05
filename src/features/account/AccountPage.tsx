@@ -10,11 +10,12 @@ import { metricInfo } from './metricInfo';
 interface AccountPageProps {
   sessionHistory: Session[];
   onNavigate: (page: Page) => void;
+  onLogout: () => void;
 }
 
 export type AccountView = 'main' | 'sessions' | 'model-config' | 'drill-settings';
 
-export default function AccountPage({ sessionHistory, onNavigate }: AccountPageProps) {
+export default function AccountPage({ sessionHistory, onNavigate, onLogout }: AccountPageProps) {
     const [view, setView] = useState<AccountView>('main');
     const [infoModalContent, setInfoModalContent] = useState<{ title: string; tip: string } | null>(null);
     const sortedHistory = [...sessionHistory].sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
@@ -46,6 +47,7 @@ export default function AccountPage({ sessionHistory, onNavigate }: AccountPageP
                         sessionHistory={sortedHistory}
                         onSetView={setView}
                         onInfoClick={handleInfoClick}
+                        onLogout={onLogout}
                     />
                 );
         }

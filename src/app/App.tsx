@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Header from '../components/layout/Header';
 import HomePage from '../features/home/HomePage';
 import DrillPage from '../features/drill/DrillPage';
 import AccountPage from '../features/account/AccountPage';
+import LoginPage from '../features/auth/LoginPage';
 import { Page, Session, AppSettings, SessionState } from '../types';
 import { SettingsContext } from '../contexts/SettingsContext';
+import { AuthContext, AuthProvider } from '../contexts/AuthContext';
 
 const defaultSettings: AppSettings = {
   modelComplexity: 'full',
@@ -24,10 +26,19 @@ const defaultSettings: AppSettings = {
   selfDefense: false,
 };
 
-const settingsStorageKey = 'bjjAiCoachSettings';
-const sessionHistoryStorageKey = 'bjjAiCoachSessionHistory';
+const settingsStorageKey = 'rollmetrics_settings';
+const sessionHistoryStorageKey = 'rollmetrics_sessions';
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const authContext = useContext(AuthContext);
   const [page, setPage] = useState<Page>('home');
   const [isDrillSessionActive, setIsDrillSessionActive] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -92,6 +103,23 @@ export default function App() {
     }
     setSettings(newSettings);
   };
+
+  const handleLoginSuccess = () => {
+    setPage('home');
+  };
+
+  const handleLogout = () => {
+    if (authContext) {
+      authContext.logout();
+      setPage('home');
+      setSessionHistory([]);
+    }
+  };
+
+  // Show login page if not authenticated
+  if (!authContext?.isAuthenticated) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
   
   const settingsContextValue = { settings, onSettingsChange: handleSettingsChange };
 
@@ -106,7 +134,7 @@ export default function App() {
                   onSessionStateChange={handleDrillSessionStateChange}
                 />;
       case 'account':
-        return <AccountPage sessionHistory={sessionHistory} onNavigate={handleNavigate} />;
+        return <AccountPage sessionHistory={sessionHistory} onNavigate={handleNavigate} onLogout={handleLogout} />;
       default:
         return <HomePage onNavigate={handleNavigate} sessionHistory={sessionHistory} />;
     }
