@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogoImage } from './LogoImage';
+import { LogoImage } from './logo.png';
 
 export const GlowingCircle = () => {
     return (
@@ -7,6 +7,7 @@ export const GlowingCircle = () => {
             <div className="absolute inset-0 bg-dd-accent rounded-full blur-2xl opacity-20"></div>
             <div className="relative w-full h-full rounded-full border-2 border-dd-border bg-dd-surface/50 p-4 overflow-hidden">
                 <LogoImage />
+                <img src={LogoImage} alt="BJJ Logo" className="w-full h-full object-contain" />
             </div>
         </div>
     );
