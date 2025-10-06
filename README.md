@@ -1,23 +1,42 @@
-# BJJ AI Coach
+# BJJ AI Coach 🥋
 
-BJJ AI Coach is a React + TypeScript web application that delivers real-time pose analytics and AI-powered coaching for Brazilian Jiu-Jitsu drills. Pose tracking happens on-device with MediaPipe, while coaching tips stream from Google’s Gemini models.
+A real-time AI-powered Brazilian Jiu-Jitsu training assistant that combines computer vision pose tracking with advanced AI coaching. Train smarter with instant feedback, comprehensive analytics, and personalized voice guidance.
 
 ---
 
 ## ✨ Features
 
-- **Live Pose Tracking:** MediaPipe PoseLandmarker runs in the browser to analyze your movement.
-- **Advanced KPIs:** Monitor balance, posture, explosiveness, flow, and more in real time.
-- **Gemini Coaching:** Streams short, actionable cues tailored to your current drill.
-- **Session History:** Stores sessions locally so you can review past training.
-- **Custom Settings:** Adjust drill focus, overlay styles, model complexity, and voice cues.
+### Core Training System
+- **🎥 Live Pose Tracking:** Browser-based MediaPipe PoseLandmarker analyzes your movement in real-time
+- **📊 Advanced Analytics:** 14+ KPIs including balance, posture, explosiveness, flow rhythm, and intensity
+- **🤖 AI Coaching:** Google Gemini 1.5 Flash streams context-aware feedback tailored to your drill
+- **🔊 Voice Guidance:** Browser-native Text-to-Speech with customizable styles and timing
+- **📈 Session Reports:** Detailed post-training analysis with peak metrics and AI insights
+- **🔐 Google Authentication:** Secure sign-in with profile management
+
+### Drill System
+- **Multiple Focus Areas:** Closed Guard, Mount Escapes, Side Control, Back Control, Takedowns, Submissions
+- **Intelligent Feedback:** Position-aware coaching that adapts to your movement
+- **Session History:** Review past training sessions with full metrics and AI feedback
+- **Customizable Settings:** Two layout modes (Immersive/Dashboard), skeleton overlays, and model complexity
+
+### Voice Cue System (Fully Functional)
+- **Smart Mode:** Context-aware feedback triggered intelligently during training
+- **Timed Intervals:** Automatic cues every 30 seconds
+- **Position-Based:** Feedback when changing positions (mount → side control)
+- **Voice Styles:** Choose between Neutral Instructor or Encouraging Coach
+- **Cue Types:** Positional prompts, motivational coaching, or technical guidance
 
 ## 🧰 Tech Stack
 
-- **Frontend:** React 19 + TypeScript, bundled with Vite.
-- **Styling:** Tailwind CSS (via CDN) and custom CSS.
-- **Pose AI:** `@mediapipe/tasks-vision` PoseLandmarker.
-- **LLM:** `@google/genai` Gemini SDK.
+- **Frontend:** React 19 + TypeScript
+- **Build Tool:** Vite 6.0
+- **Styling:** Tailwind CSS (CDN) + Custom CSS
+- **Pose Detection:** `@mediapipe/tasks-vision` PoseLandmarker
+- **AI/LLM:** `@google/generative-ai` Gemini SDK
+- **Authentication:** `@react-oauth/google` OAuth 2.0
+- **State Management:** React Context API
+- **Storage:** localStorage for session persistence
 
 ---
 
@@ -25,66 +44,177 @@ BJJ AI Coach is a React + TypeScript web application that delivers real-time pos
 
 ### Prerequisites
 
-- Node.js 18+ (or another runtime compatible with the latest Vite).
-- npm 9+ (ships with recent Node versions).
-- Modern browser with WebGL/WebRTC support (Chrome or Edge recommended).
-- Webcam access (the site must run from `http://localhost` or HTTPS for camera permissions).
-- Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **Node.js** 18+ (LTS recommended)
+- **npm** 9+ (comes with Node)
+- **Modern Browser** with WebGL/WebRTC support (Chrome/Edge recommended)
+- **Webcam** access (localhost or HTTPS required)
+- **API Keys:**
+  - [Gemini API Key](https://aistudio.google.com/app/apikey) from Google AI Studio
+  - [Google OAuth Client ID](https://console.cloud.google.com/apis/credentials) (see `docs/google-auth-setup.md`)
 
-### 1. Install dependencies
+### 1. Clone & Install
 
 ```bash
+git clone https://github.com/maheshsharma-18/bjj_jiu_jitsu_black_yellow-theme.git
+cd bjj_jiu_jitsu_black_yellow-theme
 npm install
 ```
 
-### 2. Configure environment variables
+### 2. Environment Setup
 
-1. Copy the sample file and add your Gemini key:
+Create a `.env` file in the root directory:
 
-  ```bash
-  cp .env.example .env
-  ```
+```env
+GEMINI_API_KEY=your-gemini-api-key-here
+VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+```
 
-2. Open `.env` and replace the placeholder value:
+> ⚠️ **Security:** Never commit `.env` to version control. It's already in `.gitignore`.
 
-  ```env
-  GEMINI_API_KEY=your-gemini-api-key
-  ```
-
-> ℹ️ The build step injects `GEMINI_API_KEY` into `process.env.API_KEY`. If the variable is missing the AI session will fail to start and the console will show a helpful error.
-
-### 3. Run the development server
+### 3. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-Open the printed URL (usually `http://localhost:3000`). Allow camera permissions when prompted, pick a drill, and start the session.
+Open `http://localhost:5173` (or the printed URL). Grant camera permissions, sign in with Google, and start training!
 
-### 4. Create a production build (optional)
+### 4. Production Build
 
 ```bash
 npm run build
+npm run preview  # Test the production build locally
 ```
 
-The compiled assets are output to `dist/`.
+Build output: `dist/`
 
 ---
 
 ## 🔐 Environment Variables
 
-| Variable         | Required | Description                                   |
-|------------------|----------|-----------------------------------------------|
-| `GEMINI_API_KEY` | ✔        | API key used by `@google/genai` to stream feedback.
+| Variable                  | Required | Description                                          |
+|---------------------------|----------|------------------------------------------------------|
+| `GEMINI_API_KEY`          | ✔️       | Google AI Studio API key for Gemini coaching         |
+| `VITE_GOOGLE_CLIENT_ID`   | ✔️       | OAuth 2.0 client ID for Google Sign-In               |
 
-If you deploy the app, make sure the key is injected securely—never commit a real key.
+**Setup Instructions:** See `docs/google-auth-setup.md` for OAuth configuration.
 
 ---
 
-## 💡 Troubleshooting
+## 📁 Project Structure
 
-- **“Could not get AI feedback. Check your API key.”** — Ensure `GEMINI_API_KEY` is set, restart the dev server, and refresh the page. The browser console will show the exact error if the key is missing or invalid.
-- **No camera feed** — Verify the site is loaded from `http://localhost` (or HTTPS) and that you granted webcam permission.
-- **Slow feedback** — Gemini requests depend on network latency; check your connection or lower the voice cue frequency in settings.
+```
+src/
+├── app/                    # App entry point & root styles
+├── assets/                 # Logo components & images
+├── components/             # Reusable UI components
+│   ├── forms/             # RadioGroup, SwitchToggle
+│   ├── layout/            # Header, LoadingOverlay, PageTitle
+│   └── ui/                # FeedbackPanel, InfoModal, KpiPanel
+├── config/                # Drill definitions & constants
+├── contexts/              # AuthContext, SettingsContext
+├── features/              # Feature-based modules
+│   ├── account/           # Profile, settings, session history
+│   ├── auth/              # Login page
+│   ├── drill/             # Main drill training interface
+│   └── home/              # Home page
+├── hooks/                 # Custom React hooks (useSpeechSynthesis)
+├── lib/                   # Core services
+│   ├── BjjAnalyticsEngine.ts  # Pose analytics & KPI calculation
+│   └── geminiService.ts       # Gemini AI integration
+└── types/                 # TypeScript type definitions
+```
 
-For deeper debugging, open the browser console; detailed logs are printed when the pose pipeline or Gemini integration encounters an issue.
+---
+
+## 🎯 Key Features Explained
+
+### Analytics Engine (`BjjAnalyticsEngine.ts`)
+- **Real-time KPIs:** Balance, posture, intensity, flow, explosiveness
+- **Movement Tracking:** Velocity & acceleration-based analysis
+- **Position Detection:** Identifies Guard, Top Control, Neutral positions
+- **Scramble Detection:** High-acceleration movements
+- **Session Reports:** Comprehensive metrics with duration, effort, and technique quality
+
+### Voice Cue System
+All settings are **fully functional**:
+- ✅ **Enabled Toggle:** Master on/off control
+- ✅ **Cue Type:** Changes AI feedback style (positional/motivational/technical)
+- ✅ **Frequency:** Smart/30s/Position Change/End Only
+- ✅ **Voice Style:** Affects TTS pitch, rate, and voice selection
+
+### Settings That Work
+- ✅ Drill Focus Area (filters available drills)
+- ✅ Drill Layout (Immersive vs Dashboard)
+- ✅ Show Skeleton & Visual Settings
+- ✅ Model Complexity (affects pose detection)
+- ✅ Voice Cues (all 4 settings functional)
+
+### Settings Planned for Future
+- ⏳ Skill Level (UI only, not yet passed to AI)
+- ⏳ Training Goals (stored but not used in feedback)
+- ⏳ Self Defense Toggle (placeholder)
+
+---
+
+## � Troubleshooting
+
+### API & Authentication Issues
+- **"Could not get AI feedback"** → Check `GEMINI_API_KEY` in `.env`, restart dev server
+- **Google Sign-In fails** → Verify `VITE_GOOGLE_CLIENT_ID` and OAuth settings (see `docs/google-auth-setup.md`)
+- **"API key not found"** → Environment variables must start with `VITE_` to be exposed to browser
+
+### Camera & Pose Detection
+- **No camera feed** → Ensure site runs on `localhost` or HTTPS, grant webcam permission
+- **Slow pose detection** → Lower Model Complexity in settings (Lite model)
+- **Skeleton not showing** → Enable "Show Skeleton" in Drill Settings
+
+### Performance Issues
+- **Slow Gemini responses** → Check network connection, reduce voice cue frequency
+- **High CPU usage** → Use Lite model complexity, close other tabs
+- **Voice not working** → Check browser TTS support (Chrome/Edge recommended)
+
+**Debug Mode:** Open browser DevTools Console for detailed logs.
+
+---
+
+## 🔧 Recent Fixes
+
+### Peak Intensity Issue (Fixed)
+**Problem:** Peak intensity exceeded 100% in session reports  
+**Solution:** Added proper clamping to ensure all KPIs stay within 0-100 range
+```typescript
+const intensity = Math.min(100, Math.max(0, kinematics.velocity.magnitude * 25));
+```
+
+### Cleanup (Completed)
+- ✅ Removed duplicate components and services
+- ✅ Consolidated codebase to `src/` directory
+- ✅ Cleaned up unused types and interfaces
+
+---
+
+## 📝 License
+
+MIT License - See LICENSE file for details
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push and open a Pull Request
+
+---
+
+## 📚 Documentation
+
+- **[Deployment Guide](docs/deployment.md)** - Local setup and build process
+- **[Google Auth Setup](docs/google-auth-setup.md)** - OAuth configuration steps
+
+---
+
+**Built with ❤️ for the BJJ community**
