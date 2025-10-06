@@ -216,8 +216,9 @@ export class BjjAnalyticsEngine {
         const empty = this.getEmptyKpis();
         const lastFrame = this.frameHistory[this.frameHistory.length-1];
         
-        const intensity = kinematics.velocity.magnitude * 25; // Scaled for 0-100 range
-        const flow = Math.max(0, 100 - (_magnitude(kinematics.acceleration) / 9.8) * 20);
+        // Clamp intensity to 0-100 range to prevent exceeding 100
+        const intensity = Math.min(100, Math.max(0, kinematics.velocity.magnitude * 25));
+        const flow = Math.max(0, Math.min(100, 100 - (_magnitude(kinematics.acceleration) / 9.8) * 20));
 
         return {
             ...empty,
@@ -225,7 +226,7 @@ export class BjjAnalyticsEngine {
             postureIntegrity: poseMetrics.posture,
             intensityEndurance: isMoving(userState) ? intensity : lastFrame?.kpis.intensityEndurance || null,
             flowRhythm: isMoving(userState) ? flow : lastFrame?.kpis.flowRhythm || null,
-            explosiveness: isMoving(userState) ? (this.currentMovement?.peakAcceleration || 0) * 10 : null,
+            explosiveness: isMoving(userState) ? Math.min(100, (this.currentMovement?.peakAcceleration || 0) * 10) : null,
             readyStanceTime: userState === 'IDLE' && poseMetrics.balance! > 85 && poseMetrics.posture! > 85 ? 100 : 0,
             fastScrambles: this.scrambleTimestamps.length,
             moveVariety: new Set(this.movementHistory.map(m => this._getMovementSignature(m))).size,
