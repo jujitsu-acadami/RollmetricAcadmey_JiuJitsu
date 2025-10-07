@@ -217,4 +217,4 @@ Contributions welcome! Please:
 
 ---
 
-**Built with ❤️ for the BJJ community**
+**Built with ❤️ for the Rollmetric academy**
