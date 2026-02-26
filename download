@@ -1,0 +1,9 @@
+# Copy this file to `.env` (or `.env.local`) and fill in the required secrets.
+#
+# Gemini API key that authorizes requests made through @google/genai.
+# Generate your key at https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your-gemini-api-key
+
+# Google OAuth Client ID for authentication
+# Get yours from https://console.cloud.google.com/apis/credentials
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com

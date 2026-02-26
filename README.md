@@ -1,220 +1,529 @@
-# BJJ AI Coach 🥋
-
-A real-time AI-powered Brazilian Jiu-Jitsu training assistant that combines computer vision pose tracking with advanced AI coaching. Train smarter with instant feedback, comprehensive analytics, and personalized voice guidance.
-
----
-
-## ✨ Features
-
-### Core Training System
-- **🎥 Live Pose Tracking:** Browser-based MediaPipe PoseLandmarker analyzes your movement in real-time
-- **📊 Advanced Analytics:** 14+ KPIs including balance, posture, explosiveness, flow rhythm, and intensity
-- **🤖 AI Coaching:** Google Gemini 1.5 Flash streams context-aware feedback tailored to your drill
-- **🔊 Voice Guidance:** Browser-native Text-to-Speech with customizable styles and timing
-- **📈 Session Reports:** Detailed post-training analysis with peak metrics and AI insights
-- **🔐 Google Authentication:** Secure sign-in with profile management
-
-### Drill System
-- **Multiple Focus Areas:** Closed Guard, Mount Escapes, Side Control, Back Control, Takedowns, Submissions
-- **Intelligent Feedback:** Position-aware coaching that adapts to your movement
-- **Session History:** Review past training sessions with full metrics and AI feedback
-- **Customizable Settings:** Two layout modes (Immersive/Dashboard), skeleton overlays, and model complexity
-
-### Voice Cue System (Fully Functional)
-- **Smart Mode:** Context-aware feedback triggered intelligently during training
-- **Timed Intervals:** Automatic cues every 30 seconds
-- **Position-Based:** Feedback when changing positions (mount → side control)
-- **Voice Styles:** Choose between Neutral Instructor or Encouraging Coach
-- **Cue Types:** Positional prompts, motivational coaching, or technical guidance
-
-## 🧰 Tech Stack
-
-- **Frontend:** React 19 + TypeScript
-- **Build Tool:** Vite 6.0
-- **Styling:** Tailwind CSS (CDN) + Custom CSS
-- **Pose Detection:** `@mediapipe/tasks-vision` PoseLandmarker
-- **AI/LLM:** `@google/generative-ai` Gemini SDK
-- **Authentication:** `@react-oauth/google` OAuth 2.0
-- **State Management:** React Context API
-- **Storage:** localStorage for session persistence
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Node.js** 18+ (LTS recommended)
-- **npm** 9+ (comes with Node)
-- **Modern Browser** with WebGL/WebRTC support (Chrome/Edge recommended)
-- **Webcam** access (localhost or HTTPS required)
-- **API Keys:**
-  - [Gemini API Key](https://aistudio.google.com/app/apikey) from Google AI Studio
-  - [Google OAuth Client ID](https://console.cloud.google.com/apis/credentials) (see `docs/google-auth-setup.md`)
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/maheshsharma-18/bjj_jiu_jitsu_black_yellow-theme.git
-cd bjj_jiu_jitsu_black_yellow-theme
-npm install
-```
-
-### 2. Environment Setup
-
-Create a `.env` file in the root directory:
-
-```env
-GEMINI_API_KEY=your-gemini-api-key-here
-VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
-```
-
-> ⚠️ **Security:** Never commit `.env` to version control. It's already in `.gitignore`.
-
-### 3. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:5173` (or the printed URL). Grant camera permissions, sign in with Google, and start training!
-
-### 4. Production Build
-
-```bash
-npm run build
-npm run preview  # Test the production build locally
-```
-
-Build output: `dist/`
-
----
-
-## 🔐 Environment Variables
-
-| Variable                  | Required | Description                                          |
-|---------------------------|----------|------------------------------------------------------|
-| `GEMINI_API_KEY`          | ✔️       | Google AI Studio API key for Gemini coaching         |
-| `VITE_GOOGLE_CLIENT_ID`   | ✔️       | OAuth 2.0 client ID for Google Sign-In               |
-
-**Setup Instructions:** See `docs/google-auth-setup.md` for OAuth configuration.
-
----
-
-## 📁 Project Structure
-
-```
-src/
-├── app/                    # App entry point & root styles
-├── assets/                 # Logo components & images
-├── components/             # Reusable UI components
-│   ├── forms/             # RadioGroup, SwitchToggle
-│   ├── layout/            # Header, LoadingOverlay, PageTitle
-│   └── ui/                # FeedbackPanel, InfoModal, KpiPanel
-├── config/                # Drill definitions & constants
-├── contexts/              # AuthContext, SettingsContext
-├── features/              # Feature-based modules
-│   ├── account/           # Profile, settings, session history
-│   ├── auth/              # Login page
-│   ├── drill/             # Main drill training interface
-│   └── home/              # Home page
-├── hooks/                 # Custom React hooks (useSpeechSynthesis)
-├── lib/                   # Core services
-│   ├── BjjAnalyticsEngine.ts  # Pose analytics & KPI calculation
-│   └── geminiService.ts       # Gemini AI integration
-└── types/                 # TypeScript type definitions
-```
-
----
-
-## 🎯 Key Features Explained
-
-### Analytics Engine (`BjjAnalyticsEngine.ts`)
-- **Real-time KPIs:** Balance, posture, intensity, flow, explosiveness
-- **Movement Tracking:** Velocity & acceleration-based analysis
-- **Position Detection:** Identifies Guard, Top Control, Neutral positions
-- **Scramble Detection:** High-acceleration movements
-- **Session Reports:** Comprehensive metrics with duration, effort, and technique quality
-
-### Voice Cue System
-All settings are **fully functional**:
-- ✅ **Enabled Toggle:** Master on/off control
-- ✅ **Cue Type:** Changes AI feedback style (positional/motivational/technical)
-- ✅ **Frequency:** Smart/30s/Position Change/End Only
-- ✅ **Voice Style:** Affects TTS pitch, rate, and voice selection
-
-### Settings That Work
-- ✅ Drill Focus Area (filters available drills)
-- ✅ Drill Layout (Immersive vs Dashboard)
-- ✅ Show Skeleton & Visual Settings
-- ✅ Model Complexity (affects pose detection)
-- ✅ Voice Cues (all 4 settings functional)
-
-### Settings Planned for Future
-- ⏳ Skill Level (UI only, not yet passed to AI)
-- ⏳ Training Goals (stored but not used in feedback)
-- ⏳ Self Defense Toggle (placeholder)
-
----
-
-## � Troubleshooting
-
-### API & Authentication Issues
-- **"Could not get AI feedback"** → Check `GEMINI_API_KEY` in `.env`, restart dev server
-- **Google Sign-In fails** → Verify `VITE_GOOGLE_CLIENT_ID` and OAuth settings (see `docs/google-auth-setup.md`)
-- **"API key not found"** → Environment variables must start with `VITE_` to be exposed to browser
-
-### Camera & Pose Detection
-- **No camera feed** → Ensure site runs on `localhost` or HTTPS, grant webcam permission
-- **Slow pose detection** → Lower Model Complexity in settings (Lite model)
-- **Skeleton not showing** → Enable "Show Skeleton" in Drill Settings
-
-### Performance Issues
-- **Slow Gemini responses** → Check network connection, reduce voice cue frequency
-- **High CPU usage** → Use Lite model complexity, close other tabs
-- **Voice not working** → Check browser TTS support (Chrome/Edge recommended)
-
-**Debug Mode:** Open browser DevTools Console for detailed logs.
-
----
-
-## 🔧 Recent Fixes
-
-### Peak Intensity Issue (Fixed)
-**Problem:** Peak intensity exceeded 100% in session reports  
-**Solution:** Added proper clamping to ensure all KPIs stay within 0-100 range
-```typescript
-const intensity = Math.min(100, Math.max(0, kinematics.velocity.magnitude * 25));
-```
-
-### Cleanup (Completed)
-- ✅ Removed duplicate components and services
-- ✅ Consolidated codebase to `src/` directory
-- ✅ Cleaned up unused types and interfaces
-
----
-
-## 📝 License
-
-MIT License - See LICENSE file for details
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push and open a Pull Request
-
----
-
-## 📚 Documentation
-
-- **[Deployment Guide](docs/deployment.md)** - Local setup and build process
-- **[Google Auth Setup](docs/google-auth-setup.md)** - OAuth configuration steps
-
----
-
-**Built with ❤️ for the Rollmetric academy**
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Python: 3.12.1 (main, Jul 10 2025, 11:57:50) [GCC 13.3.0]\n",
+      "OpenCV: 4.11.0\n",
+      "MediaPipe: 0.10.21\n",
+      "DISPLAY: None\n",
+      "HEADLESS: True\n",
+      "Webcam (/dev/video0) present: False\n",
+      "ffmpeg: /usr/bin/ffmpeg\n",
+      "\n",
+      "This environment has no GUI display (cv2.imshow will not work). Use Jupyter inline display or save frames to files.\n",
+      "\n",
+      "No webcam device found in the container. Use a video file instead of VideoCapture(0), or run locally with webcam access enabled (e.g., devcontainer runArgs: --device=/dev/video0).\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Environment Check: Python, packages, webcam, and display\n",
+    "import os, sys, shutil\n",
+    "print('Python:', sys.version)\n",
+    "\n",
+    "cv2_ok = False\n",
+    "mp_ok = False\n",
+    "try:\n",
+    "    import cv2\n",
+    "    print('OpenCV:', cv2.__version__)\n",
+    "    cv2_ok = True\n",
+    "except Exception as e:\n",
+    "    print('OpenCV import failed:', e)\n",
+    "\n",
+    "try:\n",
+    "    import mediapipe as mp\n",
+    "    print('MediaPipe:', mp.__version__)\n",
+    "    mp_ok = True\n",
+    "except Exception as e:\n",
+    "    print('MediaPipe import failed:', e)\n",
+    "\n",
+    "# Display env\n",
+    "print('DISPLAY:', os.environ.get('DISPLAY'))\n",
+    "headless = not bool(os.environ.get('DISPLAY'))\n",
+    "print('HEADLESS:', headless)\n",
+    "\n",
+    "# Webcam device check\n",
+    "has_cam = os.path.exists('/dev/video0')\n",
+    "print('Webcam (/dev/video0) present:', has_cam)\n",
+    "\n",
+    "# ffmpeg availability (for video files)\n",
+    "print('ffmpeg:', shutil.which('ffmpeg'))\n",
+    "\n",
+    "if not cv2_ok or not mp_ok:\n",
+    "    print('\\nNote: Missing packages were detected. In this environment they may have been auto-installed via pip in a previous step. If not, run the install cell below.')\n",
+    "\n",
+    "if headless:\n",
+    "    print('\\nThis environment has no GUI display (cv2.imshow will not work). Use Jupyter inline display or save frames to files.')\n",
+    "\n",
+    "if not has_cam:\n",
+    "    print('\\nNo webcam device found in the container. Use a video file instead of VideoCapture(0), or run locally with webcam access enabled (e.g., devcontainer runArgs: --device=/dev/video0).')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 0. Install and Import Dependencies"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!pip install mediapipe opencv-python"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import cv2\n",
+    "import mediapipe as mp\n",
+    "import numpy as np\n",
+    "mp_drawing = mp.solutions.drawing_utils\n",
+    "mp_pose = mp.solutions.pose"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# VIDEO FEED\n",
+    "cap = cv2.VideoCapture(0)\n",
+    "while cap.isOpened():\n",
+    "    ret, frame = cap.read()\n",
+    "    cv2.imshow('Mediapipe Feed', frame)\n",
+    "    \n",
+    "    if cv2.waitKey(10) & 0xFF == ord('q'):\n",
+    "        break\n",
+    "        \n",
+    "cap.release()\n",
+    "cv2.destroyAllWindows()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 1. Make Detections"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cap = cv2.VideoCapture(0)\n",
+    "## Setup mediapipe instance\n",
+    "with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:\n",
+    "    while cap.isOpened():\n",
+    "        ret, frame = cap.read()\n",
+    "        \n",
+    "        # Recolor image to RGB\n",
+    "        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)\n",
+    "        image.flags.writeable = False\n",
+    "      \n",
+    "        # Make detection\n",
+    "        results = pose.process(image)\n",
+    "    \n",
+    "        # Recolor back to BGR\n",
+    "        image.flags.writeable = True\n",
+    "        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)\n",
+    "        \n",
+    "        # Render detections\n",
+    "        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,\n",
+    "                                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), \n",
+    "                                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) \n",
+    "                                 )               \n",
+    "        \n",
+    "        cv2.imshow('Mediapipe Feed', image)\n",
+    "\n",
+    "        if cv2.waitKey(10) & 0xFF == ord('q'):\n",
+    "            break\n",
+    "\n",
+    "    cap.release()\n",
+    "    cv2.destroyAllWindows()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mp_drawing.DrawingSpec??"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 2. Determining Joints"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<img src=\"https://i.imgur.com/3j8BPdc.png\" style=\"height:300px\" >"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cap = cv2.VideoCapture(0)\n",
+    "## Setup mediapipe instance\n",
+    "with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:\n",
+    "    while cap.isOpened():\n",
+    "        ret, frame = cap.read()\n",
+    "        \n",
+    "        # Recolor image to RGB\n",
+    "        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)\n",
+    "        image.flags.writeable = False\n",
+    "      \n",
+    "        # Make detection\n",
+    "        results = pose.process(image)\n",
+    "    \n",
+    "        # Recolor back to BGR\n",
+    "        image.flags.writeable = True\n",
+    "        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)\n",
+    "        \n",
+    "        # Extract landmarks\n",
+    "        try:\n",
+    "            landmarks = results.pose_landmarks.landmark\n",
+    "            print(landmarks)\n",
+    "        except:\n",
+    "            pass\n",
+    "        \n",
+    "        \n",
+    "        # Render detections\n",
+    "        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,\n",
+    "                                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), \n",
+    "                                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) \n",
+    "                                 )               \n",
+    "        \n",
+    "        cv2.imshow('Mediapipe Feed', image)\n",
+    "\n",
+    "        if cv2.waitKey(10) & 0xFF == ord('q'):\n",
+    "            break\n",
+    "\n",
+    "    cap.release()\n",
+    "    cv2.destroyAllWindows()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "len(landmarks)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "for lndmrk in mp_pose.PoseLandmark:\n",
+    "    print(lndmrk)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].visibility"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 3. Calculate Angles"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def calculate_angle(a,b,c):\n",
+    "    a = np.array(a) # First\n",
+    "    b = np.array(b) # Mid\n",
+    "    c = np.array(c) # End\n",
+    "    \n",
+    "    radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])\n",
+    "    angle = np.abs(radians*180.0/np.pi)\n",
+    "    \n",
+    "    if angle >180.0:\n",
+    "        angle = 360-angle\n",
+    "        \n",
+    "    return angle "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]\n",
+    "elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]\n",
+    "wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shoulder, elbow, wrist"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "calculate_angle(shoulder, elbow, wrist)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "tuple(np.multiply(elbow, [640, 480]).astype(int))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cap = cv2.VideoCapture(0)\n",
+    "## Setup mediapipe instance\n",
+    "with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:\n",
+    "    while cap.isOpened():\n",
+    "        ret, frame = cap.read()\n",
+    "        \n",
+    "        # Recolor image to RGB\n",
+    "        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)\n",
+    "        image.flags.writeable = False\n",
+    "      \n",
+    "        # Make detection\n",
+    "        results = pose.process(image)\n",
+    "    \n",
+    "        # Recolor back to BGR\n",
+    "        image.flags.writeable = True\n",
+    "        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)\n",
+    "        \n",
+    "        # Extract landmarks\n",
+    "        try:\n",
+    "            landmarks = results.pose_landmarks.landmark\n",
+    "            \n",
+    "            # Get coordinates\n",
+    "            shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]\n",
+    "            elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]\n",
+    "            wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]\n",
+    "            \n",
+    "            # Calculate angle\n",
+    "            angle = calculate_angle(shoulder, elbow, wrist)\n",
+    "            \n",
+    "            # Visualize angle\n",
+    "            cv2.putText(image, str(angle), \n",
+    "                           tuple(np.multiply(elbow, [640, 480]).astype(int)), \n",
+    "                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA\n",
+    "                                )\n",
+    "                       \n",
+    "        except:\n",
+    "            pass\n",
+    "        \n",
+    "        \n",
+    "        # Render detections\n",
+    "        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,\n",
+    "                                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), \n",
+    "                                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) \n",
+    "                                 )               \n",
+    "        \n",
+    "        cv2.imshow('Mediapipe Feed', image)\n",
+    "\n",
+    "        if cv2.waitKey(10) & 0xFF == ord('q'):\n",
+    "            break\n",
+    "\n",
+    "    cap.release()\n",
+    "    cv2.destroyAllWindows()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 4. Curl Counter"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cap = cv2.VideoCapture(0)\n",
+    "\n",
+    "# Curl counter variables\n",
+    "counter = 0 \n",
+    "stage = None\n",
+    "\n",
+    "## Setup mediapipe instance\n",
+    "with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:\n",
+    "    while cap.isOpened():\n",
+    "        ret, frame = cap.read()\n",
+    "        \n",
+    "        # Recolor image to RGB\n",
+    "        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)\n",
+    "        image.flags.writeable = False\n",
+    "      \n",
+    "        # Make detection\n",
+    "        results = pose.process(image)\n",
+    "    \n",
+    "        # Recolor back to BGR\n",
+    "        image.flags.writeable = True\n",
+    "        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)\n",
+    "        \n",
+    "        # Extract landmarks\n",
+    "        try:\n",
+    "            landmarks = results.pose_landmarks.landmark\n",
+    "            \n",
+    "            # Get coordinates\n",
+    "            shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]\n",
+    "            elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]\n",
+    "            wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]\n",
+    "            \n",
+    "            # Calculate angle\n",
+    "            angle = calculate_angle(shoulder, elbow, wrist)\n",
+    "            \n",
+    "            # Visualize angle\n",
+    "            cv2.putText(image, str(angle), \n",
+    "                           tuple(np.multiply(elbow, [640, 480]).astype(int)), \n",
+    "                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA\n",
+    "                                )\n",
+    "            \n",
+    "            # Curl counter logic\n",
+    "            if angle > 160:\n",
+    "                stage = \"down\"\n",
+    "            if angle < 30 and stage =='down':\n",
+    "                stage=\"up\"\n",
+    "                counter +=1\n",
+    "                print(counter)\n",
+    "                       \n",
+    "        except:\n",
+    "            pass\n",
+    "        \n",
+    "        # Render curl counter\n",
+    "        # Setup status box\n",
+    "        cv2.rectangle(image, (0,0), (225,73), (245,117,16), -1)\n",
+    "        \n",
+    "        # Rep data\n",
+    "        cv2.putText(image, 'REPS', (15,12), \n",
+    "                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv2.LINE_AA)\n",
+    "        cv2.putText(image, str(counter), \n",
+    "                    (10,60), \n",
+    "                    cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv2.LINE_AA)\n",
+    "        \n",
+    "        # Stage data\n",
+    "        cv2.putText(image, 'STAGE', (65,12), \n",
+    "                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv2.LINE_AA)\n",
+    "        cv2.putText(image, stage, \n",
+    "                    (60,60), \n",
+    "                    cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv2.LINE_AA)\n",
+    "        \n",
+    "        \n",
+    "        # Render detections\n",
+    "        mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,\n",
+    "                                mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), \n",
+    "                                mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) \n",
+    "                                 )               \n",
+    "        \n",
+    "        cv2.imshow('Mediapipe Feed', image)\n",
+    "\n",
+    "        if cv2.waitKey(10) & 0xFF == ord('q'):\n",
+    "            break\n",
+    "\n",
+    "    cap.release()\n",
+    "    cv2.destroyAllWindows()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.1"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
